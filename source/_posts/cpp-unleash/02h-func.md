@@ -687,4 +687,4 @@ Functions are essential for writing modular, maintainable, and reusable code. Un
 
 Next, we'll explore **Arrays and Strings**, diving into how to manage collections of data in C++.
 
-Next chapter: [Arrays and Strings](/2024/09/26/cpp-unleash/02h-ctrlstruct)
+Next chapter: [Arrays and Strings](/2024/09/26/cpp-unleash/02h-arystr)
