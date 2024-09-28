@@ -5,7 +5,7 @@ tags:
     - cpp-unleash
     - 02Hero
     - diary
-categories: tutor
+categories: thought
 ---
 
 Ahhhhh! I've written almost 50,000 words! Even though I used AI and borrowed some from others, the workload is still massive. I have to review it so many times each day, tweaking things here and there. This tutorial is both frustrating and so much fun!

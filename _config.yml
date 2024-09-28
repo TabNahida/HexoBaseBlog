@@ -82,6 +82,9 @@ tag_map:
   Zero to Mastery: 02Hero
   Journal: journal
   Diary: diary
+  GitHub Action: github-act
+  Hexo: hexo
+  Web: web
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
