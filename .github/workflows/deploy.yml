@@ -1,6 +1,5 @@
 name: Deploy Hexo to GitHub Pages
 
-# 触发事件：每次 push 到 main 分支时触发
 on:
   push:
     branches:
@@ -23,21 +22,34 @@ jobs:
 
       # 步骤 3：安装依赖
       - name: Install Dependencies
-        run: |
-          npm install
+        run: npm install
 
-      # 步骤 4：生成静态文件
+      # 步骤 4：生成 Hexo 静态文件
       - name: Generate Hexo Site
         run: |
           npx hexo clean
           npx hexo generate
 
-      # 步骤 5：推送静态文件到目标仓库的 docs 文件夹
-      - name: Deploy to GitHub Pages
-        uses: ad-m/github-push-action@v0.6.0
+      # 步骤 5：检出目标仓库
+      - name: Checkout Target Repository
+        uses: actions/checkout@v3
         with:
           repository: TabNahida/TabNahida.github.io  # 目标仓库
-          branch: main  # 目标仓库的分支（通常是 main）
-          folder: public  # Hexo 默认生成静态文件的文件夹
-          target-folder: docs  # 目标仓库中的目标文件夹
-          github_token: ${{ secrets.TARGET_REPO_TOKEN }}
+          token: ${{ secrets.TARGET_REPO_TOKEN }}   # 之前添加的 Secret
+          path: target-repo
+
+      # 步骤 6：复制生成的文件到目标仓库的 docs 文件夹
+      - name: Copy Files to Target Repository
+        run: |
+          rm -rf target-repo/docs/*
+          cp -R public/* target-repo/docs/
+
+      # 步骤 7：提交并推送更改
+      - name: Commit and Push Changes
+        run: |
+          cd target-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs
+          git commit -m "Update Hexo site" || echo "No changes to commit"
+          git push
