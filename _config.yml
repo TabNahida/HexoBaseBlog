@@ -70,6 +70,7 @@ index_generator:
 default_category: uncategorized
 category_map:
   Tutorial: tutor
+  Thought: thought
 tag_map:
   Python: python
   VSCode: vscode
@@ -79,6 +80,8 @@ tag_map:
   Modern C++: modern-cpp
   C++ Unleashed: cpp-unleash
   Zero to Mastery: 02Hero
+  Journal: journal
+  Diary: diary
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
