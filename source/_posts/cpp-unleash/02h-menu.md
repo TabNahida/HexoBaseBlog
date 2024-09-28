@@ -6,7 +6,7 @@ tags:
     - Modern C++
     - C++ Unleashed
     - Zero to Hero
-categories: tutor
+categories: Tutorial
 ---
 
 # C++ Unleashed: From Zero to Hero

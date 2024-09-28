@@ -5,11 +5,13 @@ tags:
     - Python
     - VSCode
     - SetUp
-categories: tutor
+categories: Tutorial
 ---
 
-# Python and VSCode Install Tutorial
+# Python and VSCode Install tutorial
 In this tutorial, you will learn how to install ``VSCode`` the most popular code editor and ``Python`` the most popular programming language.
+
+<!--more-->
 
 ## Install VSCode
 1. Please download ``VSCode`` install packages from the offical website.

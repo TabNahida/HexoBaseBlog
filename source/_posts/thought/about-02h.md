@@ -5,7 +5,7 @@ tags:
     - C++ Unleashed
     - Zero to Hero
     - Diary
-categories: thought
+categories: Thought
 ---
 
 Ahhhhh! I've written almost 50,000 words for the book [*C++ Unleashed: From Zero to Hero*](/2024/09/26/cpp-unleash/02h-menu)! Even though I used AI and borrowed some from others, the workload is still massive. I have to review it so many times each day, tweaking things here and there. This tutorial is both frustrating and so much fun!
