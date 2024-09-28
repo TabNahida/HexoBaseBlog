@@ -11,7 +11,7 @@ categories: tutor
 
 ___C++ Unleashed: From Zero to Hero___
 
-Previous chapter: [Error Handling and Exceptions](/2024/09/27/cpp-unleash/02h-excpt)
+Previous chapter: [Testing, Debugging, and Building](/2024/09/27/cpp-unleash/02h-testing)
 
 [Go to Table of Contents](/2024/09/26/cpp-unleash/02h-menu)
 
