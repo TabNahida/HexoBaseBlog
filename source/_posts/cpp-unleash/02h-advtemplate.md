@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Advanced Template Programming"
 date: 2024-09-27 21:16:56
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

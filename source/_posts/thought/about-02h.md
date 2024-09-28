@@ -2,9 +2,9 @@
 title: "About The Book <From Zero to Hero>"
 date: 2024-09-28 23:06:19
 tags:
-    - cpp-unleash
-    - 02Hero
-    - diary
+    - C++ Unleashed
+    - Zero to Hero
+    - Diary
 categories: thought
 ---
 

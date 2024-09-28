@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Standard Template Library (STL)"
 date: 2024-09-27 01:27:48
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

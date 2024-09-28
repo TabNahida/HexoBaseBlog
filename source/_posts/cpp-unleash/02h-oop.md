@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Object-Oriented Programming"
 date: 2024-09-27 00:28:58
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

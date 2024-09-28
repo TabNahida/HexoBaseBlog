@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Testing, Debugging, and Building"
 date: 2024-09-28 01:41:44
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

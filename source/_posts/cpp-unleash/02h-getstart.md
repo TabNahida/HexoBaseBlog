@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Getting Start"
 date: 2024-09-26 11:41:32
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

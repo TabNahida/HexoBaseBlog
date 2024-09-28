@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Conclusion and Next Steps"
 date: 2024-09-27 02:12:57
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Templates and Generic Programming"
 date: 2024-09-27 00:53:14
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

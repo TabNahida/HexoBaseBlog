@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Arrays and Strings"
 date: 2024-09-26 15:41:06
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

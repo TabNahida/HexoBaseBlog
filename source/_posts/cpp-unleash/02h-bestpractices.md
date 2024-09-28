@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Best Practices and Design Patterns"
 date: 2024-09-27 23:57:23
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

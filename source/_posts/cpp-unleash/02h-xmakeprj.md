@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Using xmake to Build Projects"
 date: 2024-09-27 01:55:38
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

@@ -2,10 +2,10 @@
 title: "Automate Hexo Deployment to GitHub Pages with GitHub Actions"
 date: 2024-09-29 01:04:20
 tags:
-    - github-act
-    - hexo
-    - web
-    - setup
+    - GitHub Action
+    - Hexo
+    - Web
+    - SetUp
 categories: tutor
 ---
 

@@ -2,10 +2,10 @@
 title: "C++ Unleashed: Concurrency and Multithreading"
 date: 2024-09-27 21:12:49
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 

@@ -2,10 +2,10 @@
 title: "C++ Unleashed: From Zero to Hero"
 date: 2024-09-26 08:36:25
 tags:
-    - c-cpp
-    - modern-cpp
-    - cpp-unleash
-    - 02Hero
+    - C/C++
+    - Modern C++
+    - C++ Unleashed
+    - Zero to Hero
 categories: tutor
 ---
 
