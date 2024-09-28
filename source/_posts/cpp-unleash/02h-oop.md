@@ -19,6 +19,8 @@ Previous chapter: [Pointers and References](/2024/09/26/cpp-unleash/02h-arystr)
 
 **Object-Oriented Programming (OOP)** is a cornerstone of C++ programming, enabling developers to model complex systems through classes and objects. This chapter delves into the essential principles of OOP, providing a solid foundation for building robust and maintainable applications.
 
+<!--more-->
+
 ## Table of Contents for This Chapter
 
 1. [Classes and Objects](#classes-and-objects)

@@ -19,6 +19,8 @@ Previous chapter: [C++20 Features](/2024/09/27/cpp-unleash/02h-cpp20)
 
 The **Filesystem** library, introduced in C++17 and further enhanced in C++20, provides a standardized and portable way to perform file and directory operations. It abstracts away the underlying operating system's file handling mechanisms, allowing developers to interact with the filesystem using a consistent and intuitive API. This chapter delves into the capabilities of `std::filesystem`, enabling you to manage files and directories efficiently in your C++ applications.
 
+<!--more-->
+
 ## Table of Contents
 
 1. [Introduction to `std::filesystem`](#introduction-to-stdfilesystem)

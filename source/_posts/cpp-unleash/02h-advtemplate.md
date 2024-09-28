@@ -19,6 +19,8 @@ Previous chapter: [Concurrency and Multithreading](/2024/09/27/cpp-unleash/02h-c
 
 Templates are one of the most powerful features of C++, enabling developers to write generic and reusable code. Advanced template programming delves deeper into the capabilities of templates, allowing for more sophisticated and efficient code designs. This chapter explores advanced concepts such as template metaprogramming, type traits, SFINAE (Substitution Failure Is Not An Error), the Curiously Recurring Template Pattern (CRTP), and variadic templates with parameter packs.
 
+<!--more-->
+
 ## Table of Contents for This Chapter
 
 1. [Introduction to Advanced Templates](#introduction-to-advanced-templates)

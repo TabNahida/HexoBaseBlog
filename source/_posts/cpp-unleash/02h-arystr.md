@@ -42,6 +42,8 @@ In this chapter, we'll cover:
   - String Operations
   - Converting Between Strings and Numbers
 
+<!--more-->
+
 ## Arrays
 
 An array is a collection of elements of the same data type stored in contiguous memory locations. Arrays provide a way to store multiple values under a single variable name.

@@ -30,6 +30,8 @@ In this chapter, we will cover:
 - Algorithms
 - Function Objects (Functors)
 
+<!--more-->
+
 ## Containers
 
 Containers are data structures that store objects and provide member functions to manipulate them. The STL provides several types of containers, each designed for specific use cases.

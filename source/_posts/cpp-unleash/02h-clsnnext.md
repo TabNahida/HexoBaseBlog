@@ -19,6 +19,8 @@ Previous chapter: [Practical Projects](/2024/09/27/cpp-unleash/02h-clsnnext)
 
 Congratulations! You've reached the end of this C++ tutorial, and you should now have a solid foundation in C++ programming. Throughout this journey, you've learned about key concepts, from the basics of variables and control structures to advanced topics like object-oriented programming and modern C++ features. 
 
+<!--more-->
+
 ## Key Takeaways
 
 1. **Understanding C++ Basics**: You gained knowledge of fundamental concepts such as variables, data types, control structures, and functions, which form the backbone of programming in C++.

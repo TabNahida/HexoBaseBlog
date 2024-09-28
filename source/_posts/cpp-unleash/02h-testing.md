@@ -19,6 +19,8 @@ Previous chapter: [Best Practices and Design Patterns](/2024/09/27/cpp-unleash/0
 
 Developing robust C++ applications requires a solid foundation in testing, debugging, and building processes. This chapter explores essential tools and methodologies that ensure your code is reliable, efficient, and maintainable. You'll learn about unit testing frameworks like Google Test, the principles of Test-Driven Development (TDD), powerful debugging tools such as GDB and Valgrind, profiling techniques for performance analysis, advanced usage of the `xmake` build system, and strategies for Continuous Integration and Deployment (CI/CD). By mastering these concepts, you'll enhance your ability to deliver high-quality C++ software.
 
+<!--more-->
+
 ## Table of Contents
 
 1. [Unit Testing Frameworks](#unit-testing-frameworks)

@@ -19,6 +19,8 @@ Previous chapter: [Getting Start](/2024/09/26/cpp-unleash/02h-getstart)
 
 Control structures are fundamental to programming as they dictate the flow of execution within your programs. In C++, control structures allow you to make decisions, repeat actions, and alter the flow based on certain conditions. This chapter covers conditional statements, loops, and jump statements, including the use of `goto`.
 
+<!--more-->
+
 ## Conditional Statements
 
 Conditional statements allow your program to execute different sections of code based on whether a condition is true or false. The primary conditional statements in C++ are `if` and `switch`.

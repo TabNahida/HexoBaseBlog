@@ -19,6 +19,8 @@ Previous chapter: [Using xmake to Build Projects](/2024/09/27/cpp-unleash/02h-xm
 
 In this chapter, we'll apply the concepts you've learned throughout this tutorial to practical programming projects. Engaging in hands-on projects will help solidify your understanding of C++ and enable you to tackle real-world challenges. We'll cover various project ideas, best practices for coding, and how to document your work effectively.
 
+<!--more-->
+
 ## Project Ideas
 
 ### 1. Command-Line Calculator

@@ -19,6 +19,8 @@ Previous chapter: [Filesystem](/2024/09/27/cpp-unleash/02h-filesystem)
 
 As you progress in your journey to master C++, it's crucial to not only understand the language's syntax and features but also to adopt best practices and leverage design patterns that promote code efficiency, maintainability, and scalability. This chapter delves into modern C++ idioms, the RAII (Resource Acquisition Is Initialization) principle, essential design patterns, code optimization techniques, and strategies for writing efficient and maintainable code. By integrating these practices into your development workflow, you'll enhance the quality and robustness of your C++ applications.
 
+<!--more-->
+
 ## Table of Contents
 
 1. [Modern C++ Idioms](#modern-c++-idioms)

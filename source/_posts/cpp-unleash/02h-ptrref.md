@@ -39,6 +39,8 @@ In this chapter, we'll cover:
   - Swapping Variables Using Pointers and References
   - Implementing a Simple Dynamic Array
 
+<!--more-->
+
 ## Basics of Pointers
 
 A **pointer** is a variable that holds the memory address of another variable. Pointers provide direct access to memory and allow for powerful programming techniques.

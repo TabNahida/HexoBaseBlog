@@ -29,6 +29,8 @@ In this chapter, we'll cover:
 - Recursive Functions
 - Lambda Expressions
 
+<!--more-->
+
 ## Function Definition and Calls
 
 A function is a block of code that performs a specific task. In C++, you define a function once and can call it multiple times throughout your program.

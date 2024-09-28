@@ -27,6 +27,8 @@ In this chapter, we'll cover:
 - Variadic Templates
 - Concepts (C++20)
 
+<!--more-->
+
 ## Function Templates
 
 Function templates allow you to write a single function that works with any data type.

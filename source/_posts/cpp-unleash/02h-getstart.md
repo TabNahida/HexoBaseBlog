@@ -19,6 +19,8 @@ Previous chapter: [Introduction](/2024/09/26/cpp-unleash/02h-intro)
 
 In this chapter, we'll set up your development environment, create your first C++ program using Visual Studio Code and `xmake`, explore variables and data types, and learn how to use comments effectively in your code. This foundational knowledge will prepare you for more advanced topics in C++ programming.
 
+<!--more-->
+
 ## Environment Setup
 
 ### Prerequisites

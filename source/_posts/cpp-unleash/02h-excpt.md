@@ -19,6 +19,8 @@ Previous chapter: [Standard Template Library (STL)](/2024/09/27/cpp-unleash/02h-
 
 In C++, effective error handling is crucial for creating robust applications. This chapter will cover the concept of exceptions, how to use them for error handling, and best practices for managing errors in your code.
 
+<!--more-->
+
 ## The Concept of Exceptions
 
 Exceptions are events that occur during program execution that disrupt the normal flow of the program. They can be used to signal errors or unexpected conditions. Instead of returning error codes, C++ provides a more structured way to handle errors through exceptions.

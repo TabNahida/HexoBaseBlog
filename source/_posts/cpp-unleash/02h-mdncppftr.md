@@ -30,6 +30,8 @@ In this chapter, we'll discuss:
 - Move Semantics
 - The `std::optional` Class
 
+<!--more-->
+
 ## Type Inference with `auto`
 
 The `auto` keyword allows the compiler to automatically deduce the type of a variable at compile time, simplifying code and improving readability.

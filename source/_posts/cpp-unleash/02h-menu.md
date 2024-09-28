@@ -15,6 +15,8 @@ Welcome to **C++ Unleashed: From Zero to Hero**, a comprehensive and modern tuto
 
 Please note that while every effort has been made to ensure accuracy and completeness, this tutorial is a work in progress. We encourage readers to actively participate by identifying and reporting any errors or areas for improvement. Your feedback is invaluable in helping us create the most effective and reliable learning resource possible.
 
+<!--more-->
+
 # Table of Contents
 
 1. [Introduction](/2024/09/26/cpp-unleash/02h-intro)

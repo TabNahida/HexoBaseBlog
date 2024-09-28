@@ -19,6 +19,8 @@ Previous chapter: [Testing, Debugging, and Building](/2024/09/27/cpp-unleash/02h
 
 In this chapter, we will learn how to use **xmake**, a cross-platform build utility that simplifies the building and managing of C++ projects. With xmake, you can easily configure your build environment and manage dependencies without hassle. 
 
+<!--more-->
+
 ## Creating the `xmake.lua` File
 
 The configuration for your xmake project is defined in a file named `xmake.lua`. This file contains all the necessary information for building your application, including source files, target settings, and dependencies.

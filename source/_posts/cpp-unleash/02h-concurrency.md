@@ -19,6 +19,8 @@ Previous chapter: [Error Handling and Exceptions](/2024/09/27/cpp-unleash/02h-ex
 
 Concurrency and multithreading are essential concepts in modern C++ programming, enabling developers to build applications that can perform multiple operations simultaneously. This chapter delves into the fundamentals of concurrency, explores the C++ Standard Library's threading facilities, and provides practical examples to illustrate how to implement and manage concurrent operations effectively.
 
+<!--more-->
+
 ## Table of Contents for This Chapter
 
 1. [Introduction to Concurrency](#introduction-to-concurrency)

@@ -19,6 +19,8 @@ Previous chapter: [Table of Contents](/2024/09/26/cpp-unleash/02h-menu)
 
 Welcome to the journey of learning C++! This tutorial is designed for anyone eager to dive into programming with one of the most versatile languages available. Whether you're a complete beginner or looking to sharpen your skills, this guide will lead you step-by-step.
 
+<!--more-->
+
 ## What is C++?
 
 C++ is a powerful, high-performance programming language that supports both procedural and object-oriented programming paradigms. Developed by Bjarne Stroustrup in the early 1980s, C++ is an extension of the C programming language, incorporating features like classes, inheritance, and polymorphism.
