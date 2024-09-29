@@ -38,3 +38,5 @@ $ hexo deploy
 More info: [Deployment](https://hexo.io/docs/one-command-deployment.html)
 
 ## Test GitHub Action v2
+
+## Fucking Pages Re Update
