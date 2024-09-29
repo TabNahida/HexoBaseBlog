@@ -43,7 +43,7 @@ jobs:
         run: |
           rm -rf target-repo/docs/*
           cp -R public/* target-repo/docs/
-          cp CNAME target-repo/
+          cp CNAME target-repo/docs/CNAME
 
       # 步骤 7：提交并推送更改
       - name: Commit and Push Changes
