@@ -71,6 +71,7 @@ default_category: uncategorized
 category_map:
   Tutorial: tutor
   Thought: thought
+  Data Collection: data-collect
 tag_map:
   Python: python
   VSCode: vscode
@@ -85,6 +86,8 @@ tag_map:
   GitHub Action: github-act
   Hexo: hexo
   Web: web
+  Data: data
+  Math: math
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
