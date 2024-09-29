@@ -88,6 +88,11 @@ tag_map:
   Web: web
   Data: data
   Math: math
+  PrizmSDK: prizm-sdk
+  Embedded: embed
+  Compiler: compiler
+  Toolchain: toolchain
+  Library: lib
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
