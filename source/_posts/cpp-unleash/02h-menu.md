@@ -81,10 +81,11 @@ Please note that while every effort has been made to ensure accuracy and complet
     - Auto Type Deduction (`auto`)
     - Range-Based For Loops
     - Type Aliases (`using`)
-    - `constexpr` and `decltype`
+    - `constexpr`, `consteval`, and `constinit`
+    - `decltype`
     - `std::variant` and `std::optional`
     - `nullptr`
-
+    
 10. [Standard Template Library (STL)](/2024/09/27/cpp-unleash/02h-stl)
     - Containers (`vector`, `list`, `map`, etc.)
     - Algorithms and Iterators
