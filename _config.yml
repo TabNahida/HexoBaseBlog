@@ -95,6 +95,10 @@ tag_map:
   Toolchain: toolchain
   Library: lib
   Algorithm: algo
+  OpenSumeru: opensumeru
+  NetWork: network
+  Tool: tool
+  Release: release
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
