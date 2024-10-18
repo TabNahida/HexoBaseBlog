@@ -99,6 +99,8 @@ tag_map:
   NetWork: network
   Tool: tool
   Release: release
+  Novel: novel
+  Literature: literature
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
