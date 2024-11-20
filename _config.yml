@@ -101,6 +101,7 @@ tag_map:
   Release: release
   Novel: novel
   Literature: literature
+  CBuer: cbuer
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta

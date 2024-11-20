@@ -6,6 +6,7 @@ tags:
     - OpenSumeru
     - NetWork
     - Tool
+    - Release
 categories: Project Introduction
 ---
 
