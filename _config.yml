@@ -102,6 +102,8 @@ tag_map:
   Novel: novel
   Literature: literature
   CBuer: cbuer
+  Physics: phy
+  Study: study
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta

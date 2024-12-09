@@ -20,4 +20,3 @@ One major lesson I learned during this journey is the power of incremental progr
 Of course, AI assistance played a significant role in this transformation. I found that, while AI is great for a lot of tasks, it struggles even after moving to a modular approach, especially when the problems are deeply interconnected. Despite the modularity, GPT-4 often faced challenges in addressing the complexities inherent in such systems.
 
 Modularity has truly changed the way I approach programming. It made my work more structured and efficient, but also much more enjoyable. Taking this step towards embracing separation and incremental progress was a game-changer for developing the CBuer compiler.
-
