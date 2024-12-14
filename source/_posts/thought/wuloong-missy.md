@@ -19,3 +19,6 @@ With "Miss from Wuloong," I want to bring to life the beauty of Wuloong and the 
 There are so many aspects of writing that I’m learning along the way—plot development, character arcs, pacing, and even just the discipline of writing regularly. Using GPT helps me overcome writer's block and gives me new perspectives on how to approach certain scenes. But it's still up to me to make the final decisions, add my own touch, and make the story uniquely mine. I think that's the most rewarding part: knowing that, in the end, it's my story, shaped by my experiences and imagination.
 
 It’s been a challenging start, but I’m optimistic. I believe that if I keep pushing forward, I can create something meaningful. I’m grateful for this opportunity to finally bring my ideas to life, and I hope that one day others will enjoy reading "Miss from Wuloong" as much as I enjoy writing it.
+
+From 2024/12/14:
+I think this novel will just end. Data does not good.
