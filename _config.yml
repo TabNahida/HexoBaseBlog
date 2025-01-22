@@ -73,6 +73,7 @@ category_map:
   Thought: thought
   Data Collection: data-collect
   Project Introduction: project-intro
+  Research: research
 tag_map:
   Python: python
   VSCode: vscode
@@ -105,6 +106,9 @@ tag_map:
   Physics: phy
   Study: study
   CosPlay: cosplay
+  Astronomy: astro
+  AI: ai
+  Exoplanet: exoplanet
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
