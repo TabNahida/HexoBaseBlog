@@ -1,5 +1,5 @@
 ---
-title: CosPlay Furine at The End of 2024
+title: "CosPlay Furine at The End of 2024"
 date: 2025-01-07 23:11:18
 tags:
     - CosPlay
@@ -7,6 +7,8 @@ tags:
 categories: Thought
 secret: Furina1013
 ---
+
+# 2024末的芙宁娜
 
 <!--more-->
 

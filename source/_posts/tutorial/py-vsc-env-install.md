@@ -1,5 +1,5 @@
 ---
-title: Python VSCode Environment Install
+title: "Python VSCode Environment Install"
 date: 2024-09-22 23:33:32
 tags:
     - Python
