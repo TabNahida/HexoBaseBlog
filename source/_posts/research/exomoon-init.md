@@ -1,5 +1,5 @@
 ---
-title: exomoon-init
+title: Exomoon Search Project
 date: 2025-01-22 19:47:46
 tags:
     - Astronomy
