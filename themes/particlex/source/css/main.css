@@ -773,6 +773,24 @@ pre {
     overflow: hidden;
     white-space: normal;
 }
+.mermaid {
+    background: #fff;
+    border: 1px solid #e8edf5;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px #00000012;
+    margin: 25px 0;
+    overflow: hidden;
+    overflow-x: auto;
+    padding: 16px;
+    text-align: center;
+}
+.mermaid svg {
+    height: auto;
+    border-radius: 10px;
+    display: inline-block;
+    max-width: none;
+    min-width: 100%;
+}
 pre,
 code,
 .hljs,

@@ -26,6 +26,10 @@
 <link rel="stylesheet" href="https://s4.zstatic.net/ajax/libs/KaTeX/0.16.9/katex.min.css" />
 <script src="<%- url_for("/js/lib/math.js") %>"></script>
 <% } %>
+<% if (theme.mermaid && theme.mermaid.enable) { %>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script src="<%- url_for("/js/lib/mermaid.js") %>"></script>
+<% } %>
 <% if (theme.preview.enable) { %>
 <script src="<%- url_for("/js/lib/preview.js") %>"></script>
 <% } %>

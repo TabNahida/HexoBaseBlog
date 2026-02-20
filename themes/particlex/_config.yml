@@ -93,6 +93,10 @@ highlight:
 math:
     enable: true
 
+# Mermaid diagram rendering
+mermaid:
+    enable: true
+
 # Image preview
 preview:
     enable: true
