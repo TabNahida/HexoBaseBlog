@@ -6,4 +6,5 @@ tags:
     - Literature
     - Diary
 categories: Thought
+published: false
 ---

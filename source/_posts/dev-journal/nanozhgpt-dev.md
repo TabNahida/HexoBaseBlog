@@ -1,5 +1,5 @@
 ---
-title: "NanoZhGPT Develop Journal"
+title: "NanoZhGPT Development Log"
 date: 2026-02-19 22:43:54
 tags:
     - Python
@@ -12,7 +12,7 @@ tags:
 categories: Dev Journal
 ---
 
-# Training NanoZhGPT: My Journey Building a 100M Parameter Chinese Language Model
+# Training NanoZhGPT: Building a 100M Parameter Chinese Language Model
 
 A few weeks ago, I came across a Zhihu article where someone trained a 3M parameter Chinese LLM with decent results. That sparked an idea: why not try training my own? What started as a modest 10M parameter goal eventually evolved into a 100M parameter model.
 
