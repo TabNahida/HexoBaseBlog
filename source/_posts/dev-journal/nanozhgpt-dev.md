@@ -1,5 +1,5 @@
 ---
-title: nanozhgpt-dev
+title: "NanoZhGPT Develop Journal"
 date: 2026-02-19 22:43:54
 tags:
     - Python
