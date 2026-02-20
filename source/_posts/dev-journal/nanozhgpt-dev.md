@@ -12,16 +12,6 @@ tags:
 categories: Dev Journal
 ---
 
-看了篇知乎文章，讲他自己训练了一个3M左右参数的中文大模型，效果还可以，我就想自己也训练一个。我最开始订下的是10M左右，后续把标准定到100M，数据集是C4的ZH部分，数据总量在67GB的样子。
-
-最开始的是确定的词表，我选择了Byte level BPE，大小定在50K，算大词表。训练词表的时候就踩了坑，本来是准备用HF的Datasets配合Tokenizer的Trainer，结果跑很久都无法完成对如此海量数据的预处理，折腾了很久，最后还是下定决心自己写了一个面对这种情况的C++ trainer，很快就把问题解决了。
-
-然后就是训练部分，因为开始做这个项目的时候还不知道lightning之类的框架，只能自己写一套训练框架，有很多细节处理的不是很好。第一波训练的loss还可以，但是不知道为什么我把token处理换成C++的版本后就不太行了，最后17000反而是几次训练里loss最低的，但是实际效果其实一般。后续我还训练了v2和10M的版本，还租用GPU训练了一个300M的上下文长度更长的。
-
-现在只做了Pretrain就踩了不少坑，后需Post Train应该是不用做了，但是大概知道该怎么训练了，我在想后面再来一个项目做更好的只针对英文文本的模型，然后改进一下结构。
-
-
-
 # Training NanoZhGPT: My Journey Building a 100M Parameter Chinese Language Model
 
 A few weeks ago, I came across a Zhihu article where someone trained a 3M parameter Chinese LLM with decent results. That sparked an idea: why not try training my own? What started as a modest 10M parameter goal eventually evolved into a 100M parameter model.
@@ -87,7 +77,7 @@ All models were trained on local XPU except the 300M model, which I'm currently 
 | 100M v2| ~100M  | 2048    | ~36 hours     | Local XPU  |
 | 300M   | ~300M  | 2048    | ~82 hours*    | AutoDL GPU |
 
-*Still in progress
+*300M Still in progress*
 
 The 300M model features extended context length and is my largest training experiment so far.
 
