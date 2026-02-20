@@ -142,19 +142,17 @@ xychart-beta
 
 4. **Training dynamics**: The 10M model showed smoother, more predictable convergence than 100M variants.
 
-## Lessons Learned
+## Engineering Insights
 
-**Data preprocessing is critical** - The tokenizer training bottleneck was my first major obstacle. HF's abstractions that work well for small datasets become bottlenecks at scale. Sometimes you need to drop to a lower level.
+**Pipeline Scalability**: High-level abstractions encountered memory bottlenecks with 67GB+ corpora. A custom C++ tokenizer with chunked I/O resolved throughput constraints and enabled resumable preprocessing.
 
-**Vibe coding works** - When conventional tools fail, sometimes you just need to sit down and code your way out. The C++ trainer was born from frustration and a "let me just try this" mindset.
+**Metric Correlation**: Validation loss convergence did not linearly correlate with generative quality in the <100M regime. Quantitative metrics require supplementation with qualitative evaluation.
 
-**Metrics aren't everything** - Validation loss on C4 doesn't guarantee good generative quality, especially for small models. The gap between metrics and real-world performance is real.
+**Infrastructure Trade-offs**: Custom training loops provide granular control over checkpointing and mixed precision but increase engineering overhead. Established frameworks may better support architecture experimentation.
 
-**Framework trade-offs** - Building from scratch gave me deep insights into training infrastructure (checkpointing, gradient accumulation, mixed precision), but consumed time that could have gone to model improvements. Now I understand why Lightning exists.
+**Scaling Stability**: Transitioning to 100M parameters introduced instability (e.g., NaN losses). Larger configurations necessitate refined hyperparameter tuning, including gradient clipping and learning rate schedules.
 
-**Scale brings complexity** - Larger models need more careful tuning. The 10M model trained smoothly in 8 hours, while 100M v2 took 36 hours and showed training instability. My current 300M experiment on AutoDL (82+ hours) is teaching me even more about scaling challenges.
-
-**Cloud compute is valuable** - Renting GPU time on AutoDL allowed me to experiment with larger models (300M) that wouldn't be feasible on local hardware.
+**Compute Elasticity**: Cloud GPU resources facilitated scaling beyond local XPU limits, highlighting the importance of elastic infrastructure for iterative development.
 
 ## What's Next
 
