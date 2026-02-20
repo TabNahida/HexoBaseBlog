@@ -2,7 +2,6 @@
 title: "Using PrizmSDK to Build Programs for Casio Graphing Calculators"
 date: 2024-09-29 11:54:45
 tags:
-    - PrizmSDK
     - Embedded
     - Compiler
     - Toolchain

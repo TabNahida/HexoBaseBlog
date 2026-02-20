@@ -74,6 +74,7 @@ category_map:
   Data Collection: data-collect
   Project Introduction: project-intro
   Research: research
+  Dev Journal: dev-journal
 tag_map:
   Python: python
   VSCode: vscode
@@ -90,7 +91,6 @@ tag_map:
   Web: web
   Data: data
   Math: math
-  PrizmSDK: prizm-sdk
   Embedded: embed
   Compiler: compiler
   Toolchain: toolchain
@@ -108,6 +108,13 @@ tag_map:
   CosPlay: cosplay
   Astronomy: astro
   AI: ai
+  LLM: llm
+  PyTorch: pytorch
+  NLP: nlp
+  Deep Learning: deep-learning
+  Machine Learning: ml
+  Model Training: model-training
+  GPT: gpt
   Exoplanet: exoplanet
 
 # Metadata elements
