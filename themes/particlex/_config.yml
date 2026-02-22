@@ -70,6 +70,11 @@ card:
 # Footer info
 footer:
     since: 2024
+    # Copyright license
+    copyright:
+        enable: true
+        license: CC-BY-NC
+        link: https://creativecommons.org/licenses/by-nc/4.0/
     # Customize the server domain name ICP
     ICP:
         enable: false

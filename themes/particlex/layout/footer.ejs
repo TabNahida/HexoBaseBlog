@@ -12,6 +12,19 @@
             Based on the <a href="https://hexo.io">Hexo Engine</a> &amp;
             <a href="https://github.com/theme-particlex/hexo-theme-particlex">ParticleX Theme</a>
         </div>
+        <% if (theme.footer.copyright.enable) { %>
+        <div>
+            <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title">
+                <%= config.title %>
+            </span> by 
+            <a xmlns:cc="http://creativecommons.org/ns#" href="<%= config.url %>" property="cc:attributionName" rel="cc:attributionURL">
+                <%= config.author %>
+            </a> is licensed under 
+            <a rel="license" href="<%= theme.footer.copyright.link %>">
+                <%= theme.footer.copyright.license %>
+            </a>
+        </div>
+        <% } %>
         <% if (theme.footer.ICP.enable) { %>
         <div>
             备案号：
