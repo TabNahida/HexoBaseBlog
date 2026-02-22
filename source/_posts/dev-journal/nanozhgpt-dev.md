@@ -81,6 +81,12 @@ All models were trained on local XPU except the 300M model, which I'm currently 
 
 The 300M model features extended context length and is my largest training experiment so far.
 
+Here is GPT300M train code
+
+```bash
+python train/train_xpu.py --data-dir data/tokens --out-dir checkpoints/gpt300m --device cuda --dtype bf16 --gradient-checkpointing --min-batch-size 1 --seq-len 8192 --n-layer 20 --n-head 16 --n-embd 1024 --batch-size 4 --grad-accum 16 --prefetch-batches 32 --shards-per-batch 1 --ram-cache-gb 32 --max-iters 20000 --compile
+```
+
 ## Training Results
 
 ### 100M Model (seq_len=1024)
