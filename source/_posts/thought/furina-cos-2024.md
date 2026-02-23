@@ -1,5 +1,5 @@
 ---
-title: "CosPlay Furine at The End of 2024"
+title: "CosPlay Furina at The End of 2024"
 date: 2025-01-07 23:11:18
 tags:
     - CosPlay
