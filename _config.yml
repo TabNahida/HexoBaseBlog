@@ -116,6 +116,7 @@ tag_map:
   Model Training: model-training
   GPT: gpt
   Exoplanet: exoplanet
+  Token: token
 
 # Metadata elements
 ## https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
