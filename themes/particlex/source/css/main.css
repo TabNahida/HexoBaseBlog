@@ -1664,10 +1664,12 @@ ol li {
 }
 .chatbox-thread .tool-chat-message.role-user {
     align-self: flex-end;
+    margin-right: 14px;
     width: min(72%, 100%);
 }
 .chatbox-thread .tool-chat-message.role-assistant {
     align-self: flex-start;
+    margin-left: 6px;
     width: min(86%, 100%);
 }
 .chatbox-thread .tool-chat-message.is-editing {
