@@ -29,7 +29,6 @@ mixins.chatbox = {
                 settings: createChatboxSettings(),
                 draft: "",
                 search: "",
-                messages: [],
                 conversations: [],
                 activeConversationId: "",
                 models: [],
@@ -37,6 +36,7 @@ mixins.chatbox = {
                 editingDraft: "",
                 showControlsPanel: false,
                 activeControlsSection: "reasoning",
+                renderNonce: 0,
                 sending: false,
                 fetchingModels: false,
                 error: "",
@@ -149,6 +149,10 @@ mixins.chatbox = {
         },
     },
     methods: {
+        resolveChatboxConversationId(conversationOrId) {
+            if (!conversationOrId) return "";
+            return typeof conversationOrId === "string" ? conversationOrId : conversationOrId.id || "";
+        },
         normalizeChatboxApiRoot(value) {
             const trimmed = (value || "").trim();
             if (!trimmed) return "";
@@ -264,7 +268,6 @@ mixins.chatbox = {
             };
             this.chatbox.conversations.unshift(conversation);
             this.chatbox.activeConversationId = conversation.id;
-            this.chatbox.messages = conversation.messages.slice();
             this.cancelEditChatboxMessage();
             this.refreshChatboxUi();
             return conversation;
@@ -273,39 +276,47 @@ mixins.chatbox = {
             return this.chatbox.conversations.find((conversation) => conversation.id === conversationId) || null;
         },
         ensureChatboxConversation() {
-            let conversation = this.getChatboxConversationById();
-            if (conversation) {
-                if (this.chatbox.messages !== conversation.messages) {
-                    this.chatbox.messages = conversation.messages.slice();
-                }
-                return conversation;
-            }
+            const conversation = this.getChatboxConversationById();
+            if (conversation) return conversation;
             return this.createChatboxConversation();
         },
         touchChatboxConversation(conversation, titleSource = "") {
-            if (!conversation) return;
-            conversation.updatedAt = Date.now();
-            if (titleSource && (!conversation.title || conversation.title === "New chat")) {
-                conversation.title = this.truncateChatboxConversationTitle(titleSource);
-            }
-            const index = this.chatbox.conversations.findIndex((item) => item.id === conversation.id);
-            if (index > 0) {
-                const [item] = this.chatbox.conversations.splice(index, 1);
-                this.chatbox.conversations.unshift(item);
-            }
+            const conversationId = this.resolveChatboxConversationId(conversation);
+            if (!conversationId) return null;
+            const index = this.chatbox.conversations.findIndex((item) => item.id === conversationId);
+            if (index === -1) return null;
+
+            const current = this.chatbox.conversations[index];
+            const updated = {
+                ...current,
+                updatedAt: Date.now(),
+                title:
+                    titleSource && (!current.title || current.title === "New chat")
+                        ? this.truncateChatboxConversationTitle(titleSource)
+                        : current.title,
+            };
+
+            this.chatbox.conversations.splice(index, 1);
+            this.chatbox.conversations.unshift(updated);
+            return updated;
         },
         replaceChatboxConversationMessages(conversation, messages) {
-            if (!conversation) return;
+            const conversationId = this.resolveChatboxConversationId(conversation);
+            if (!conversationId) return null;
+            const index = this.chatbox.conversations.findIndex((item) => item.id === conversationId);
+            if (index === -1) return null;
             const normalized = Array.isArray(messages) ? messages.slice() : [];
-            conversation.messages = normalized;
-            if (this.chatbox.activeConversationId === conversation.id) {
-                this.chatbox.messages = conversation.messages.slice();
-            }
-            this.touchChatboxConversation(conversation);
+            const current = this.chatbox.conversations[index];
+            this.chatbox.conversations.splice(index, 1, {
+                ...current,
+                messages: normalized,
+            });
+            const updated = this.touchChatboxConversation(conversationId);
             this.refreshChatboxUi();
+            return updated;
         },
         replaceChatboxMessages(messages) {
-            this.replaceChatboxConversationMessages(this.ensureChatboxConversation(), messages);
+            this.replaceChatboxConversationMessages(this.chatbox.activeConversationId, messages);
         },
         restoreChatboxConversations() {
             if (typeof window === "undefined" || !window.localStorage) {
@@ -339,7 +350,6 @@ mixins.chatbox = {
                 const targetId = saved?.activeConversationId;
                 const active = this.chatbox.conversations.find((conversation) => conversation.id === targetId) || this.chatbox.conversations[0];
                 this.chatbox.activeConversationId = active.id;
-                this.chatbox.messages = active.messages.slice();
             } catch (error) {
                 console.warn("Failed to restore chatbox conversations.", error);
                 this.chatbox.conversations = [];
@@ -365,7 +375,6 @@ mixins.chatbox = {
                 this.abortChatboxRequest();
             }
             this.chatbox.activeConversationId = conversation.id;
-            this.chatbox.messages = conversation.messages.slice();
             this.cancelEditChatboxMessage();
             this.chatbox.error = "";
             this.chatbox.status = "";
@@ -432,6 +441,7 @@ mixins.chatbox = {
             });
         },
         refreshChatboxUi(scrollToBottom = false) {
+            this.chatbox.renderNonce += 1;
             if (typeof this.$forceUpdate === "function") this.$forceUpdate();
             this.refreshChatboxRichContent();
             if (scrollToBottom) this.scrollChatboxToBottom();
@@ -572,7 +582,6 @@ mixins.chatbox = {
                 reasoningRaw: "",
                 pending: false,
                 metrics: null,
-                metricsDismissed: false,
                 finishReason: "",
                 createdAt: Date.now(),
                 ...extras,
@@ -760,13 +769,6 @@ mixins.chatbox = {
             this.cancelEditChatboxMessage();
             await this.dispatchChatboxMessage(content);
         },
-        dismissChatboxMetrics(messageId) {
-            const index = this.findChatboxMessageIndex(messageId);
-            if (index === -1) return;
-            const message = this.chatboxDisplayMessages[index];
-            message.metricsDismissed = true;
-            this.refreshChatboxUi();
-        },
         deleteChatboxConversation(conversationId) {
             const index = this.chatbox.conversations.findIndex((conversation) => conversation.id === conversationId);
             if (index === -1) return;
@@ -789,7 +791,6 @@ mixins.chatbox = {
                 const nextConversation =
                     this.chatbox.conversations[Math.min(index, this.chatbox.conversations.length - 1)] || this.chatbox.conversations[0];
                 this.chatbox.activeConversationId = nextConversation.id;
-                this.chatbox.messages = nextConversation.messages.slice();
             }
 
             this.chatbox.status = "Conversation deleted.";
@@ -933,14 +934,15 @@ mixins.chatbox = {
             return metrics;
         },
         parseChatboxStreamPayloads(payload) {
-            const trimmed = payload.trim();
-            if (!trimmed) return [];
-            if (trimmed === "[DONE]") return ["[DONE]"];
+            const raw = typeof payload === "string" ? payload : "";
+            const probe = raw.trim();
+            if (!probe) return [];
+            if (probe === "[DONE]") return ["[DONE]"];
 
             const parsed = [];
-            const candidates = [trimmed];
-            if (trimmed.includes("\n")) {
-                trimmed
+            const candidates = [probe];
+            if (raw.includes("\n")) {
+                raw
                     .split(/\r?\n/)
                     .map((item) => item.trim())
                     .filter(Boolean)
@@ -960,15 +962,15 @@ mixins.chatbox = {
                 }
             }
 
-            if (!parsed.length && !trimmed.startsWith("{") && !trimmed.startsWith("[") && !/^event:/i.test(trimmed)) {
-                parsed.push(trimmed);
+            if (!parsed.length && !probe.startsWith("{") && !probe.startsWith("[") && !/^event:/i.test(probe)) {
+                parsed.push(raw.replace(/\r/g, ""));
             }
 
             return parsed;
         },
         processChatboxStreamPayload(payload, assistantMessage, tracker) {
-            const trimmed = (payload || "").trim();
-            if (!trimmed) {
+            const rawPayload = typeof payload === "string" ? payload : "";
+            if (!rawPayload.trim()) {
                 return {
                     done: false,
                     changed: false,
@@ -977,7 +979,7 @@ mixins.chatbox = {
 
             const beforeRaw = assistantMessage.rawContent || "";
             const beforeReasoning = assistantMessage.reasoningRaw || "";
-            const events = this.parseChatboxStreamPayloads(trimmed);
+            const events = this.parseChatboxStreamPayloads(rawPayload);
             if (events.includes("[DONE]")) {
                 return {
                     done: true,
@@ -1023,30 +1025,31 @@ mixins.chatbox = {
             };
         },
         processChatboxStreamEvent(block, assistantMessage, tracker) {
-            const trimmedBlock = (block || "").trim();
-            if (!trimmedBlock) {
+            const rawBlock = typeof block === "string" ? block : "";
+            const probe = rawBlock.trim();
+            if (!probe) {
                 return {
                     done: false,
                     changed: false,
                 };
             }
 
-            const dataLines = block
+            const dataLines = rawBlock
                 .split(/\r?\n/)
                 .filter((line) => /^\s*data:/i.test(line))
-                .map((line) => line.replace(/^\s*data:/i, "").trimStart());
+                .map((line) => line.replace(/^\s*data:\s?/i, ""));
             if (dataLines.length) {
-                return this.processChatboxStreamPayload(dataLines.join("\n").trim(), assistantMessage, tracker);
+                return this.processChatboxStreamPayload(dataLines.join("\n"), assistantMessage, tracker);
             }
 
-            if (/^(event:|id:|retry:)/im.test(trimmedBlock) && !/\bdata:/im.test(block)) {
+            if (/^(event:|id:|retry:)/im.test(probe) && !/\bdata:/im.test(rawBlock)) {
                 return {
                     done: false,
                     changed: false,
                 };
             }
 
-            return this.processChatboxStreamPayload(trimmedBlock, assistantMessage, tracker);
+            return this.processChatboxStreamPayload(rawBlock, assistantMessage, tracker);
         },
         async consumeChatboxStream(response, assistantMessage, tracker, contentType = "") {
             const reader = response.body.getReader();
@@ -1145,6 +1148,7 @@ mixins.chatbox = {
             this.chatbox.error = "";
             this.chatbox.status = "";
             const conversation = this.ensureChatboxConversation();
+            const conversationId = conversation.id;
             const userMessage = this.createChatboxMessage("user", content);
             const assistantMessage = this.createChatboxMessage("assistant", "", {
                 rawContent: "",
@@ -1152,8 +1156,9 @@ mixins.chatbox = {
                 pending: true,
             });
 
-            this.replaceChatboxConversationMessages(conversation, [...conversation.messages, userMessage, assistantMessage]);
-            this.touchChatboxConversation(conversation, content);
+            const baseMessages = this.getChatboxConversationById(conversationId)?.messages || [];
+            this.replaceChatboxConversationMessages(conversationId, [...baseMessages, userMessage, assistantMessage]);
+            this.touchChatboxConversation(conversationId, content);
             this.chatbox.sending = true;
             await this.$nextTick();
             this.refreshChatboxUi(true);
@@ -1180,7 +1185,10 @@ mixins.chatbox = {
 
             const requestMessages = this.buildChatboxMessages(
                 content,
-                conversation.messages.slice(0, Math.max(0, conversation.messages.length - 2))
+                (this.getChatboxConversationById(conversationId)?.messages || []).slice(
+                    0,
+                    Math.max(0, (this.getChatboxConversationById(conversationId)?.messages || []).length - 2)
+                )
             );
 
             const requestBody = {
@@ -1253,7 +1261,7 @@ mixins.chatbox = {
                     assistantMessage.content = "The endpoint returned successfully, but no text content was found.";
                 }
 
-                if (this.chatbox.activeConversationId === conversation.id) {
+                if (this.chatbox.activeConversationId === conversationId) {
                     this.chatbox.status = "Response completed.";
                 }
                 this.refreshChatboxUi();
@@ -1265,12 +1273,13 @@ mixins.chatbox = {
                     assistantMessage.rawContent = assistantMessage.content;
                 }
                 if (!assistantMessage.content && !assistantMessage.reasoning && aborted) {
+                    const currentMessages = this.getChatboxConversationById(conversationId)?.messages || [];
                     this.replaceChatboxConversationMessages(
-                        conversation,
-                        conversation.messages.filter((message) => message.id !== assistantMessage.id)
+                        conversationId,
+                        currentMessages.filter((message) => message.id !== assistantMessage.id)
                     );
                 }
-                if (this.chatbox.activeConversationId === conversation.id) {
+                if (this.chatbox.activeConversationId === conversationId) {
                     this.chatbox.error = aborted ? "" : error.message || "Request failed.";
                     this.chatbox.status = aborted ? "Response stopped." : "";
                 }
@@ -1278,10 +1287,7 @@ mixins.chatbox = {
             } finally {
                 this.chatbox.sending = false;
                 this.chatboxAbortController = null;
-                this.touchChatboxConversation(conversation);
-                if (this.chatbox.activeConversationId === conversation.id) {
-                    this.chatbox.messages = conversation.messages.slice();
-                }
+                this.touchChatboxConversation(conversationId);
                 this.refreshChatboxUi(true);
             }
         },
@@ -1327,7 +1333,7 @@ mixins.chatbox = {
         },
         hasChatboxMetrics(message) {
             const metrics = message?.metrics;
-            if (!metrics || message?.metricsDismissed) return false;
+            if (!metrics) return false;
             return [
                 metrics.promptTokens,
                 metrics.completionTokens,

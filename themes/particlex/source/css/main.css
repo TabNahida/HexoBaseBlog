@@ -2013,12 +2013,6 @@ ol li {
     line-height: 1;
     margin-left: 5px;
 }
-.chatbox-metrics-close {
-    border-radius: 999px;
-    flex: 0 0 auto;
-    height: 30px;
-    width: 30px;
-}
 .chatbox-json-textarea {
     min-height: 160px;
 }

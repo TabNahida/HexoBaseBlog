@@ -118,7 +118,7 @@
             </div>
 
             <div class="tool-chat-log chatbox-log" ref="chatboxLog">
-                <div class="chatbox-thread">
+                <div class="chatbox-thread" :key="`${chatbox.activeConversationId}-${chatbox.renderNonce}`">
                     <div v-if="!chatboxDisplayMessages.length" class="tool-empty-state chatbox-empty">
                         <i class="fa-solid fa-wave-square"></i>
                         <h3>Pick an endpoint, then start</h3>
@@ -238,15 +238,6 @@
                                     <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
                                 </span>
                             </div>
-                            <button
-                                type="button"
-                                class="tool-icon-button chatbox-metrics-close"
-                                title="Hide metrics"
-                                aria-label="Hide metrics"
-                                @click="dismissChatboxMetrics(message.id)"
-                            >
-                                <i class="fa-solid fa-xmark fa-fw"></i>
-                            </button>
                         </div>
                     </article>
                 </div>
