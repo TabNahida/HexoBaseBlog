@@ -28,8 +28,14 @@ mixins.chatbox = {
             chatbox: {
                 settings: createChatboxSettings(),
                 draft: "",
+                search: "",
                 messages: [],
+                conversations: [],
+                activeConversationId: "",
                 models: [],
+                editingMessageId: "",
+                editingDraft: "",
+                showControlsPanel: false,
                 sending: false,
                 fetchingModels: false,
                 error: "",
@@ -40,6 +46,7 @@ mixins.chatbox = {
             },
             chatboxAbortController: null,
             chatboxStorageKey: "particlex-chatbox-settings-v2",
+            chatboxConversationStorageKey: "particlex-chatbox-conversations-v1",
             chatboxSkipNextPersist: false,
         };
     },
@@ -93,9 +100,29 @@ mixins.chatbox = {
         chatboxStreamLabel() {
             return this.chatbox.settings.stream ? "Streaming on" : "Streaming off";
         },
+        chatboxFilteredConversations() {
+            const keyword = (this.chatbox.search || "").trim().toLowerCase();
+            if (!keyword) return this.chatbox.conversations;
+            return this.chatbox.conversations.filter((conversation) => {
+                const haystack = [
+                    conversation.title,
+                    ...(conversation.messages || []).map((message) => message.content || message.rawContent || ""),
+                ]
+                    .join("\n")
+                    .toLowerCase();
+                return haystack.includes(keyword);
+            });
+        },
     },
     created() {
         this.restoreChatboxSettings();
+        this.restoreChatboxConversations();
+    },
+    mounted() {
+        window.addEventListener("keydown", this.handleChatboxWindowKeydown);
+    },
+    unmounted() {
+        window.removeEventListener("keydown", this.handleChatboxWindowKeydown);
     },
     watch: {
         "chatbox.settings": {
@@ -103,6 +130,15 @@ mixins.chatbox = {
             handler() {
                 this.persistChatboxSettings();
             },
+        },
+        "chatbox.conversations": {
+            deep: true,
+            handler() {
+                this.persistChatboxConversations();
+            },
+        },
+        "chatbox.activeConversationId"() {
+            this.persistChatboxConversations();
         },
     },
     methods: {
@@ -193,6 +229,7 @@ mixins.chatbox = {
             this.chatbox.lastModelsRoot = "";
             this.chatbox.connectionState = "idle";
             this.chatbox.showKey = false;
+            this.chatbox.showControlsPanel = false;
             this.chatbox.error = "";
             this.chatbox.status = "Saved settings cleared.";
             if (typeof window !== "undefined" && window.localStorage) {
@@ -202,6 +239,188 @@ mixins.chatbox = {
                     console.warn("Failed to clear chatbox settings.", error);
                 }
             }
+        },
+        truncateChatboxConversationTitle(text) {
+            const normalized = this.normalizeChatboxText(text).replace(/\s+/g, " ");
+            if (!normalized) return "New chat";
+            return normalized.length > 42 ? `${normalized.slice(0, 42)}...` : normalized;
+        },
+        createChatboxConversation(initialMessages = []) {
+            const now = Date.now();
+            const conversation = {
+                id: `chat-${now}-${Math.random().toString(16).slice(2)}`,
+                title: "New chat",
+                createdAt: now,
+                updatedAt: now,
+                messages: initialMessages,
+            };
+            this.chatbox.conversations.unshift(conversation);
+            this.chatbox.activeConversationId = conversation.id;
+            this.chatbox.messages = conversation.messages;
+            this.cancelEditChatboxMessage();
+            return conversation;
+        },
+        getChatboxConversationById(conversationId = this.chatbox.activeConversationId) {
+            return this.chatbox.conversations.find((conversation) => conversation.id === conversationId) || null;
+        },
+        ensureChatboxConversation() {
+            let conversation = this.getChatboxConversationById();
+            if (conversation) {
+                if (this.chatbox.messages !== conversation.messages) {
+                    this.chatbox.messages = conversation.messages;
+                }
+                return conversation;
+            }
+            return this.createChatboxConversation();
+        },
+        touchChatboxConversation(conversation, titleSource = "") {
+            if (!conversation) return;
+            conversation.updatedAt = Date.now();
+            if (titleSource && (!conversation.title || conversation.title === "New chat")) {
+                conversation.title = this.truncateChatboxConversationTitle(titleSource);
+            }
+            const index = this.chatbox.conversations.findIndex((item) => item.id === conversation.id);
+            if (index > 0) {
+                const [item] = this.chatbox.conversations.splice(index, 1);
+                this.chatbox.conversations.unshift(item);
+            }
+        },
+        replaceChatboxConversationMessages(conversation, messages) {
+            if (!conversation) return;
+            const normalized = Array.isArray(messages) ? messages : [];
+            conversation.messages = normalized;
+            if (this.chatbox.activeConversationId === conversation.id) {
+                this.chatbox.messages = conversation.messages;
+            }
+            this.touchChatboxConversation(conversation);
+        },
+        replaceChatboxMessages(messages) {
+            this.replaceChatboxConversationMessages(this.ensureChatboxConversation(), messages);
+        },
+        restoreChatboxConversations() {
+            if (typeof window === "undefined" || !window.localStorage) {
+                this.createChatboxConversation();
+                return;
+            }
+            try {
+                const raw = window.localStorage.getItem(this.chatboxConversationStorageKey);
+                if (!raw) {
+                    this.createChatboxConversation();
+                    return;
+                }
+                const saved = JSON.parse(raw);
+                const conversations = Array.isArray(saved?.conversations) ? saved.conversations : [];
+                this.chatbox.conversations = conversations
+                    .filter((conversation) => conversation && typeof conversation === "object")
+                    .map((conversation) => ({
+                        id: conversation.id || `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        title: conversation.title || "New chat",
+                        createdAt: conversation.createdAt || Date.now(),
+                        updatedAt: conversation.updatedAt || conversation.createdAt || Date.now(),
+                        messages: Array.isArray(conversation.messages) ? conversation.messages : [],
+                    }))
+                    .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0));
+
+                if (!this.chatbox.conversations.length) {
+                    this.createChatboxConversation();
+                    return;
+                }
+
+                const targetId = saved?.activeConversationId;
+                const active = this.chatbox.conversations.find((conversation) => conversation.id === targetId) || this.chatbox.conversations[0];
+                this.chatbox.activeConversationId = active.id;
+                this.chatbox.messages = active.messages;
+            } catch (error) {
+                console.warn("Failed to restore chatbox conversations.", error);
+                this.chatbox.conversations = [];
+                this.createChatboxConversation();
+            }
+        },
+        persistChatboxConversations() {
+            if (typeof window === "undefined" || !window.localStorage) return;
+            try {
+                const payload = {
+                    activeConversationId: this.chatbox.activeConversationId,
+                    conversations: this.chatbox.conversations,
+                };
+                window.localStorage.setItem(this.chatboxConversationStorageKey, JSON.stringify(payload));
+            } catch (error) {
+                console.warn("Failed to persist chatbox conversations.", error);
+            }
+        },
+        selectChatboxConversation(conversationId) {
+            const conversation = this.getChatboxConversationById(conversationId);
+            if (!conversation) return;
+            if (this.chatbox.sending && this.chatbox.activeConversationId !== conversation.id) {
+                this.abortChatboxRequest();
+            }
+            this.chatbox.activeConversationId = conversation.id;
+            this.chatbox.messages = conversation.messages;
+            this.cancelEditChatboxMessage();
+            this.chatbox.error = "";
+            this.chatbox.status = "";
+            this.refreshChatboxRichContent();
+            this.scrollChatboxToBottom();
+        },
+        getChatboxConversationPreview(conversation) {
+            if (!conversation) return "";
+            const assistant = (conversation.messages || []).find((message) => message.role === "assistant" && (message.content || message.rawContent));
+            if (assistant) {
+                return this.truncateChatboxConversationTitle(assistant.content || assistant.rawContent || "");
+            }
+            const user = (conversation.messages || []).find((message) => message.role === "user" && (message.content || message.rawContent));
+            if (user) {
+                return this.truncateChatboxConversationTitle(user.content || user.rawContent || "");
+            }
+            return "Empty conversation";
+        },
+        escapeChatboxHtml(value) {
+            return String(value || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        },
+        renderChatboxMarkdown(text) {
+            const source = typeof text === "string" ? text : "";
+            if (!source.trim()) return "";
+            if (typeof window !== "undefined" && window.marked && typeof window.marked.parse === "function") {
+                try {
+                    const html = window.marked.parse(source, {
+                        breaks: true,
+                        gfm: true,
+                    });
+                    if (window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
+                        return window.DOMPurify.sanitize(html);
+                    }
+                    return html;
+                } catch (error) {
+                    console.warn("Failed to render markdown.", error);
+                }
+            }
+            return this.escapeChatboxHtml(source).replace(/\n/g, "<br>");
+        },
+        renderChatboxMessageHtml(message) {
+            return this.renderChatboxMarkdown(this.getChatboxMessageBodyText(message));
+        },
+        renderChatboxReasoningHtml(message) {
+            return this.renderChatboxMarkdown(message?.reasoning || "");
+        },
+        refreshChatboxRichContent() {
+            this.$nextTick(() => {
+                const wrap = this.$refs.chatboxLog;
+                if (!wrap || typeof window === "undefined" || !window.hljs) return;
+                wrap.querySelectorAll("pre code").forEach((code) => {
+                    if (code.dataset.chatboxHighlighted === "1") return;
+                    try {
+                        window.hljs.highlightElement(code);
+                        code.dataset.chatboxHighlighted = "1";
+                    } catch (error) {
+                        console.warn("Failed to highlight a chatbox code block.", error);
+                    }
+                });
+            });
         },
         splitChatboxThinking(text) {
             const input = typeof text === "string" ? text : "";
@@ -440,19 +659,90 @@ mixins.chatbox = {
         },
         resetChatboxConversation() {
             if (this.chatbox.sending) this.abortChatboxRequest();
-            this.chatbox.messages = [];
+            this.createChatboxConversation();
+            this.cancelEditChatboxMessage();
             this.chatbox.error = "";
-            this.chatbox.status = "Conversation cleared.";
+            this.chatbox.status = "Started a new conversation.";
         },
         abortChatboxRequest() {
             if (!this.chatboxAbortController) return;
             this.chatboxAbortController.abort();
         },
+        handleChatboxWindowKeydown(event) {
+            if (event.key === "Escape" && this.chatbox.showControlsPanel) {
+                this.chatbox.showControlsPanel = false;
+            }
+        },
         handleChatboxComposerKeydown(event) {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.isComposing) return;
+            if (event.key === "Enter" && !event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
                 event.preventDefault();
                 this.sendChatboxMessage();
             }
+        },
+        findChatboxMessageIndex(messageId) {
+            return this.chatbox.messages.findIndex((message) => message.id === messageId);
+        },
+        startEditChatboxMessage(messageId) {
+            const index = this.findChatboxMessageIndex(messageId);
+            if (index === -1) return;
+            const message = this.chatbox.messages[index];
+            if (message.role !== "user") return;
+            this.chatbox.editingMessageId = messageId;
+            this.chatbox.editingDraft = message.content || message.rawContent || "";
+        },
+        cancelEditChatboxMessage() {
+            this.chatbox.editingMessageId = "";
+            this.chatbox.editingDraft = "";
+        },
+        saveEditedChatboxMessage(messageId) {
+            const index = this.findChatboxMessageIndex(messageId);
+            if (index === -1) return;
+            const nextText = this.chatbox.editingDraft.trim();
+            if (!nextText) {
+                this.chatbox.error = "Edited user message cannot be empty.";
+                return;
+            }
+
+            const message = this.chatbox.messages[index];
+            if (message.role !== "user") return;
+
+            message.content = nextText;
+            message.rawContent = nextText;
+            this.replaceChatboxMessages(this.chatbox.messages.slice(0, index + 1));
+            this.touchChatboxConversation(this.getChatboxConversationById(), nextText);
+            this.cancelEditChatboxMessage();
+            this.chatbox.status = "User message updated. Continue from here or click Re-send.";
+            this.refreshChatboxRichContent();
+        },
+        getChatboxResendTargetId(messageId) {
+            const index = this.findChatboxMessageIndex(messageId);
+            if (index === -1) return "";
+
+            const current = this.chatbox.messages[index];
+            if (current.role === "user") return current.id;
+
+            for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+                if (this.chatbox.messages[cursor].role === "user") return this.chatbox.messages[cursor].id;
+            }
+
+            return "";
+        },
+        async resendChatboxFromMessage(messageId, overrideText) {
+            const targetId = this.getChatboxResendTargetId(messageId);
+            const index = this.findChatboxMessageIndex(targetId);
+            if (index === -1) return;
+
+            const fallbackText = this.chatbox.messages[index].content || this.chatbox.messages[index].rawContent || "";
+            const content = (typeof overrideText === "string" ? overrideText : fallbackText).trim();
+            if (!content) {
+                this.chatbox.error = "Cannot re-send an empty message.";
+                return;
+            }
+
+            this.replaceChatboxMessages(this.chatbox.messages.slice(0, index));
+            this.cancelEditChatboxMessage();
+            await this.dispatchChatboxMessage(content);
         },
         scrollChatboxToBottom() {
             this.$nextTick(() => {
@@ -491,7 +781,7 @@ mixins.chatbox = {
             }
             return this.normalizeChatboxText(message.content);
         },
-        buildChatboxMessages(userMessage) {
+        buildChatboxMessages(userMessage, historyMessages = this.chatbox.messages) {
             const messages = [];
             const prompt = this.chatbox.settings.systemPrompt.trim();
             if (prompt) {
@@ -501,7 +791,7 @@ mixins.chatbox = {
                 });
             }
 
-            this.chatbox.messages.forEach((message) => {
+            historyMessages.forEach((message) => {
                 if (!["user", "assistant"].includes(message.role)) return;
                 const content =
                     message.role === "assistant"
@@ -619,29 +909,53 @@ mixins.chatbox = {
                 }
             }
 
+            if (!parsed.length && !trimmed.startsWith("{") && !trimmed.startsWith("[") && !/^event:/i.test(trimmed)) {
+                parsed.push(trimmed);
+            }
+
             return parsed;
         },
-        processChatboxStreamEvent(block, assistantMessage, tracker) {
-            const dataLines = block
-                .split(/\r?\n/)
-                .filter((line) => line.startsWith("data:"))
-                .map((line) => line.slice(5).trimStart());
-            if (!dataLines.length) return false;
+        processChatboxStreamPayload(payload, assistantMessage, tracker) {
+            const trimmed = (payload || "").trim();
+            if (!trimmed) {
+                return {
+                    done: false,
+                    changed: false,
+                };
+            }
 
-            const payload = dataLines.join("\n").trim();
-            if (!payload) return false;
-            const events = this.parseChatboxStreamPayloads(payload);
-            if (events.includes("[DONE]")) return true;
-            if (!events.length) return false;
+            const beforeRaw = assistantMessage.rawContent || "";
+            const beforeReasoning = assistantMessage.reasoningRaw || "";
+            const events = this.parseChatboxStreamPayloads(trimmed);
+            if (events.includes("[DONE]")) {
+                return {
+                    done: true,
+                    changed: beforeRaw !== (assistantMessage.rawContent || "") || beforeReasoning !== (assistantMessage.reasoningRaw || ""),
+                };
+            }
+            if (!events.length) {
+                return {
+                    done: false,
+                    changed: false,
+                };
+            }
 
-            for (const json of events) {
+            for (const event of events) {
+                if (typeof event === "string") {
+                    if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
+                    this.applyChatboxAssistantUpdate(assistantMessage, event, "");
+                    continue;
+                }
+
+                const json = event;
                 if (json?.error) {
                     throw new Error(json.error.message || json.error || "Streaming request failed.");
                 }
 
                 const choice = json?.choices?.[0];
                 const rawText = this.extractChatboxChunkContent(json);
-                const reasoningText = this.extractChatboxChunkReasoning(json, true);
+                const hasFinalMessageShape = Boolean(choice?.message || json?.message || json?.output || json?.response);
+                const reasoningText = this.extractChatboxChunkReasoning(json, !hasFinalMessageShape);
 
                 if ((rawText || reasoningText) && !tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
                 this.applyChatboxAssistantUpdate(assistantMessage, rawText, reasoningText);
@@ -650,29 +964,105 @@ mixins.chatbox = {
                 if (choice?.finish_reason) assistantMessage.finishReason = choice.finish_reason;
             }
 
-            this.scrollChatboxToBottom();
-            return false;
+            const changed = beforeRaw !== (assistantMessage.rawContent || "") || beforeReasoning !== (assistantMessage.reasoningRaw || "");
+            if (changed) this.scrollChatboxToBottom();
+            return {
+                done: false,
+                changed,
+            };
         },
-        async consumeChatboxStream(response, assistantMessage, tracker) {
+        processChatboxStreamEvent(block, assistantMessage, tracker) {
+            const trimmedBlock = (block || "").trim();
+            if (!trimmedBlock) {
+                return {
+                    done: false,
+                    changed: false,
+                };
+            }
+
+            const dataLines = block
+                .split(/\r?\n/)
+                .filter((line) => /^\s*data:/i.test(line))
+                .map((line) => line.replace(/^\s*data:/i, "").trimStart());
+            if (dataLines.length) {
+                return this.processChatboxStreamPayload(dataLines.join("\n").trim(), assistantMessage, tracker);
+            }
+
+            if (/^(event:|id:|retry:)/im.test(trimmedBlock) && !/\bdata:/im.test(block)) {
+                return {
+                    done: false,
+                    changed: false,
+                };
+            }
+
+            return this.processChatboxStreamPayload(trimmedBlock, assistantMessage, tracker);
+        },
+        async consumeChatboxStream(response, assistantMessage, tracker, contentType = "") {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
+            let mode = contentType.includes("text/event-stream") ? "sse" : "";
+            let parsedAnything = false;
 
             while (true) {
                 const { value, done } = await reader.read();
                 buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
 
-                const events = buffer.split(/\r?\n\r?\n/);
-                buffer = events.pop() || "";
+                if (!mode) {
+                    const sample = buffer.trimStart();
+                    if (sample) {
+                        if (/^(data:|event:|id:|retry:)/im.test(sample)) mode = "sse";
+                        else if (contentType.includes("json") || sample.startsWith("{") || sample.startsWith("[")) mode = "jsonl";
+                        else if (sample.includes("\n")) mode = "jsonl";
+                        else mode = "text";
+                    }
+                }
 
-                for (const event of events) {
-                    if (this.processChatboxStreamEvent(event, assistantMessage, tracker)) return;
+                if (mode === "sse") {
+                    const events = buffer.split(/\r?\n\r?\n/);
+                    buffer = events.pop() || "";
+
+                    for (const event of events) {
+                        const result = this.processChatboxStreamEvent(event, assistantMessage, tracker);
+                        parsedAnything = parsedAnything || result.changed;
+                        if (result.done) {
+                            return { parsedAnything, done: true };
+                        }
+                    }
+                } else if (mode === "jsonl") {
+                    const lines = buffer.split(/\r?\n/);
+                    buffer = done ? "" : lines.pop() || "";
+
+                    for (const line of lines) {
+                        const result = this.processChatboxStreamEvent(line, assistantMessage, tracker);
+                        parsedAnything = parsedAnything || result.changed;
+                        if (result.done) {
+                            return { parsedAnything, done: true };
+                        }
+                    }
+                } else if (mode === "text" && buffer) {
+                    if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
+                    this.applyChatboxAssistantUpdate(assistantMessage, buffer, "");
+                    this.scrollChatboxToBottom();
+                    parsedAnything = true;
+                    buffer = "";
                 }
 
                 if (done) break;
             }
 
-            if (buffer.trim()) this.processChatboxStreamEvent(buffer, assistantMessage, tracker);
+            if (buffer.trim()) {
+                const result = this.processChatboxStreamEvent(buffer, assistantMessage, tracker);
+                parsedAnything = parsedAnything || result.changed;
+                if (!result.changed && mode === "text") {
+                    if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
+                    this.applyChatboxAssistantUpdate(assistantMessage, buffer, "");
+                    this.scrollChatboxToBottom();
+                    parsedAnything = true;
+                }
+            }
+
+            return { parsedAnything, done: false };
         },
         applyChatboxFinalPayload(payload, assistantMessage, tracker) {
             const choice = payload?.choices?.[0];
@@ -689,31 +1079,21 @@ mixins.chatbox = {
 
             if (choice?.finish_reason) assistantMessage.finishReason = choice.finish_reason;
         },
-        async sendChatboxMessage() {
-            const content = this.chatbox.draft.trim();
+        failChatboxAssistantMessage(assistantMessage, messageText, finishReason = "client_error") {
+            assistantMessage.pending = false;
+            assistantMessage.finishReason = finishReason;
+            assistantMessage.content = messageText;
+            assistantMessage.rawContent = messageText;
+            assistantMessage.reasoning = "";
+            assistantMessage.reasoningRaw = "";
+            this.refreshChatboxRichContent();
+        },
+        async dispatchChatboxMessage(content) {
             if (!content || this.chatbox.sending) return;
 
             this.chatbox.error = "";
             this.chatbox.status = "";
-
-            if (!this.chatboxChatEndpoint) {
-                this.chatbox.error = "Set the API root before sending a message.";
-                return;
-            }
-            if (!this.chatbox.settings.model.trim()) {
-                this.chatbox.error = "Select or enter a model before sending a message.";
-                return;
-            }
-
-            let extraBody;
-            try {
-                extraBody = this.parseChatboxExtraBody();
-            } catch (error) {
-                this.chatbox.error = error.message || "Extra body JSON is invalid.";
-                return;
-            }
-
-            const requestMessages = this.buildChatboxMessages(content);
+            const conversation = this.ensureChatboxConversation();
             const userMessage = this.createChatboxMessage("user", content);
             const assistantMessage = this.createChatboxMessage("assistant", "", {
                 rawContent: "",
@@ -721,10 +1101,39 @@ mixins.chatbox = {
                 pending: true,
             });
 
-            this.chatbox.messages.push(userMessage, assistantMessage);
-            this.chatbox.draft = "";
+            conversation.messages.push(userMessage, assistantMessage);
+            if (this.chatbox.activeConversationId === conversation.id) {
+                this.chatbox.messages = conversation.messages;
+            }
+            this.touchChatboxConversation(conversation, content);
             this.chatbox.sending = true;
+            this.refreshChatboxRichContent();
             this.scrollChatboxToBottom();
+
+            if (!this.chatboxChatEndpoint) {
+                this.failChatboxAssistantMessage(assistantMessage, "Set the API root before sending a message.");
+                this.chatbox.sending = false;
+                return;
+            }
+            if (!this.chatbox.settings.model.trim()) {
+                this.failChatboxAssistantMessage(assistantMessage, "Select or enter a model before sending a message.");
+                this.chatbox.sending = false;
+                return;
+            }
+
+            let extraBody;
+            try {
+                extraBody = this.parseChatboxExtraBody();
+            } catch (error) {
+                this.failChatboxAssistantMessage(assistantMessage, error.message || "Extra body JSON is invalid.");
+                this.chatbox.sending = false;
+                return;
+            }
+
+            const requestMessages = this.buildChatboxMessages(
+                content,
+                conversation.messages.slice(0, Math.max(0, conversation.messages.length - 2))
+            );
 
             const requestBody = {
                 model: this.chatbox.settings.model.trim(),
@@ -781,8 +1190,8 @@ mixins.chatbox = {
                 }
 
                 const contentType = (response.headers.get("content-type") || "").toLowerCase();
-                if (requestBody.stream && response.body && contentType.includes("text/event-stream")) {
-                    await this.consumeChatboxStream(response, assistantMessage, tracker);
+                if (requestBody.stream && response.body) {
+                    await this.consumeChatboxStream(response, assistantMessage, tracker, contentType);
                 } else {
                     const payload = await response.json();
                     this.applyChatboxFinalPayload(payload, assistantMessage, tracker);
@@ -796,29 +1205,59 @@ mixins.chatbox = {
                     assistantMessage.content = "The endpoint returned successfully, but no text content was found.";
                 }
 
-                this.chatbox.status = "Response completed.";
+                if (this.chatbox.activeConversationId === conversation.id) {
+                    this.chatbox.status = "Response completed.";
+                }
+                this.refreshChatboxRichContent();
             } catch (error) {
                 const aborted = error && error.name === "AbortError";
                 assistantMessage.pending = false;
                 if (!assistantMessage.content && !assistantMessage.reasoning && !aborted) {
                     assistantMessage.content = "No displayable text was parsed from the streaming response.";
+                    assistantMessage.rawContent = assistantMessage.content;
                 }
                 if (!assistantMessage.content && !assistantMessage.reasoning && aborted) {
-                    this.chatbox.messages = this.chatbox.messages.filter((message) => message.id !== assistantMessage.id);
+                    this.replaceChatboxConversationMessages(
+                        conversation,
+                        conversation.messages.filter((message) => message.id !== assistantMessage.id)
+                    );
                 }
-                this.chatbox.error = aborted ? "" : error.message || "Request failed.";
-                this.chatbox.status = aborted ? "Response stopped." : "";
+                if (this.chatbox.activeConversationId === conversation.id) {
+                    this.chatbox.error = aborted ? "" : error.message || "Request failed.";
+                    this.chatbox.status = aborted ? "Response stopped." : "";
+                }
+                this.refreshChatboxRichContent();
             } finally {
                 this.chatbox.sending = false;
                 this.chatboxAbortController = null;
+                this.touchChatboxConversation(conversation);
+                if (this.chatbox.activeConversationId === conversation.id) {
+                    this.chatbox.messages = conversation.messages;
+                }
                 this.scrollChatboxToBottom();
             }
+        },
+        async sendChatboxMessage() {
+            const content = this.chatbox.draft.trim();
+            if (!content || this.chatbox.sending) return;
+            this.chatbox.draft = "";
+            await this.dispatchChatboxMessage(content);
         },
         formatChatboxTime(value) {
             try {
                 return new Date(value).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
+                });
+            } catch (error) {
+                return "";
+            }
+        },
+        formatChatboxConversationTime(value) {
+            try {
+                return new Date(value).toLocaleDateString([], {
+                    month: "short",
+                    day: "numeric",
                 });
             } catch (error) {
                 return "";

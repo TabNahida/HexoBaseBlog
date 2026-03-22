@@ -26,6 +26,51 @@
     </section>
 
     <section class="tool-workspace chatbox-layout">
+        <aside class="tool-panel chatbox-sessionbar">
+            <div class="chatbox-sessionbar-header">
+                <div>
+                    <p class="tool-panel-kicker">Sessions</p>
+                    <h2>Conversations</h2>
+                </div>
+                <button type="button" class="tool-ghost-button" @click="resetChatboxConversation">
+                    <i class="fa-solid fa-pen-to-square fa-fw"></i>
+                    <span>New chat</span>
+                </button>
+            </div>
+
+            <label class="tool-field chatbox-session-search">
+                <span>Search</span>
+                <input
+                    class="tool-input"
+                    v-model.trim="chatbox.search"
+                    placeholder="Search conversations"
+                    autocomplete="off"
+                />
+            </label>
+
+            <div class="chatbox-session-list">
+                <button
+                    v-for="conversation in chatboxFilteredConversations"
+                    :key="conversation.id"
+                    type="button"
+                    class="chatbox-session-item"
+                    :class="{ active: chatbox.activeConversationId === conversation.id }"
+                    @click="selectChatboxConversation(conversation.id)"
+                >
+                    <span class="chatbox-session-item-title" v-text="conversation.title"></span>
+                    <span class="chatbox-session-item-preview" v-text="getChatboxConversationPreview(conversation)"></span>
+                    <span class="chatbox-session-item-meta">
+                        <time v-text="formatChatboxConversationTime(conversation.updatedAt)"></time>
+                        <span v-text="`${conversation.messages.length} msgs`"></span>
+                    </span>
+                </button>
+
+                <div v-if="!chatboxFilteredConversations.length" class="chatbox-session-empty">
+                    <p>No conversations matched your search.</p>
+                </div>
+            </div>
+        </aside>
+
         <section class="tool-panel tool-console chatbox-main">
             <div class="chatbox-main-header">
                 <div class="chatbox-main-copy">
@@ -37,13 +82,13 @@
                     </p>
                 </div>
                 <div class="tool-console-actions">
+                    <button type="button" class="tool-ghost-button" @click="chatbox.showControlsPanel = true">
+                        <i class="fa-solid fa-sliders fa-fw"></i>
+                        <span>Controls</span>
+                    </button>
                     <button type="button" class="tool-ghost-button" :disabled="chatbox.fetchingModels" @click="fetchChatboxModels">
                         <i class="fa-solid fa-rotate fa-fw"></i>
                         <span>Refresh models</span>
-                    </button>
-                    <button type="button" class="tool-ghost-button" :disabled="!chatbox.messages.length" @click="resetChatboxConversation">
-                        <i class="fa-solid fa-sparkles fa-fw"></i>
-                        <span>New chat</span>
                     </button>
                     <button type="button" class="tool-danger-button" :disabled="!chatbox.sending" @click="abortChatboxRequest">
                         <i class="fa-solid fa-stop fa-fw"></i>
@@ -61,72 +106,120 @@
             </div>
 
             <div class="tool-chat-log chatbox-log" ref="chatboxLog">
-                <div v-if="!chatbox.messages.length" class="tool-empty-state chatbox-empty">
-                    <i class="fa-solid fa-wave-square"></i>
-                    <h3>Pick an endpoint, then start</h3>
-                    <ol class="chatbox-empty-steps">
-                        <li>Set the API root or a compatible endpoint.</li>
-                        <li>Fetch models from <code>/models</code> or type the model id manually.</li>
-                        <li>Adjust think / sampling controls and send the first message.</li>
-                    </ol>
-                </div>
-
-                <article
-                    v-for="message in chatbox.messages"
-                    :key="message.id"
-                    class="tool-chat-message"
-                    :class="'role-' + message.role"
-                >
-                    <div class="tool-chat-role">
-                        <span class="tool-role-badge" v-text="message.role === 'user' ? 'You' : 'Assistant'"></span>
-                        <time class="tool-message-time" v-text="formatChatboxTime(message.createdAt)"></time>
+                <div class="chatbox-thread">
+                    <div v-if="!chatbox.messages.length" class="tool-empty-state chatbox-empty">
+                        <i class="fa-solid fa-wave-square"></i>
+                        <h3>Pick an endpoint, then start</h3>
+                        <ol class="chatbox-empty-steps">
+                            <li>Set the API root or a compatible endpoint.</li>
+                            <li>Fetch models from <code>/models</code> or type the model id manually.</li>
+                            <li>Open Controls if you need think or sampling settings, then send the first message.</li>
+                        </ol>
                     </div>
 
-                    <div class="tool-chat-bubble" :class="{ pending: message.pending }">
-                        <div
-                            v-if="message.reasoning && chatbox.settings.showThinking"
-                            class="chatbox-thinking"
-                        >
-                            <div class="chatbox-thinking-label">Think</div>
-                            <div class="tool-chat-text" v-text="message.reasoning"></div>
+                    <article
+                        v-for="message in chatbox.messages"
+                        :key="message.id"
+                        class="tool-chat-message"
+                        :class="['role-' + message.role, { 'is-editing': chatbox.editingMessageId === message.id }]"
+                    >
+                        <div class="tool-chat-role">
+                            <span class="tool-role-badge" v-text="message.role === 'user' ? 'You' : 'Assistant'"></span>
+                            <time class="tool-message-time" v-text="formatChatboxTime(message.createdAt)"></time>
+                        </div>
+
+                        <div class="tool-chat-bubble" :class="{ pending: message.pending }">
+                            <template v-if="message.role === 'user' && chatbox.editingMessageId === message.id">
+                                <div class="chatbox-edit-box">
+                                    <textarea
+                                        class="tool-textarea chatbox-edit-textarea"
+                                        v-model="chatbox.editingDraft"
+                                        placeholder="Edit this message, then save or re-send."
+                                    ></textarea>
+                                    <div class="chatbox-message-actions">
+                                        <button type="button" class="tool-ghost-button" @click="cancelEditChatboxMessage">
+                                            Cancel
+                                        </button>
+                                        <button type="button" class="tool-ghost-button" @click="saveEditedChatboxMessage(message.id)">
+                                            Save
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="tool-primary-button"
+                                            :disabled="chatbox.sending || !chatbox.editingDraft.trim()"
+                                            @click="resendChatboxFromMessage(message.id, chatbox.editingDraft)"
+                                        >
+                                            Save & Re-send
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                            <template v-else>
+                                <details
+                                    v-if="message.role === 'assistant' && message.reasoning && chatbox.settings.showThinking"
+                                    class="chatbox-reasoning-panel"
+                                >
+                                    <summary class="chatbox-reasoning-summary">
+                                        <span>Reasoning</span>
+                                        <i class="fa-solid fa-chevron-down fa-fw"></i>
+                                    </summary>
+                                    <div class="chatbox-reasoning-body chatbox-markdown" v-html="renderChatboxReasoningHtml(message)"></div>
+                                </details>
+                                <div class="tool-chat-text chatbox-markdown" v-html="renderChatboxMessageHtml(message)"></div>
+                            </template>
+                        </div>
+
+                        <div class="chatbox-message-actions">
+                            <button
+                                v-if="message.role === 'user' && chatbox.editingMessageId !== message.id"
+                                type="button"
+                                class="tool-ghost-button"
+                                @click="startEditChatboxMessage(message.id)"
+                            >
+                                Edit
+                            </button>
+                            <button
+                                v-if="getChatboxResendTargetId(message.id)"
+                                type="button"
+                                class="tool-ghost-button"
+                                :disabled="chatbox.sending"
+                                @click="resendChatboxFromMessage(message.id)"
+                            >
+                                Re-send
+                            </button>
                         </div>
 
                         <div
-                            class="tool-chat-text"
-                            v-text="getChatboxMessageBodyText(message)"
-                        ></div>
-                    </div>
-
-                    <div
-                        v-if="chatbox.settings.showSpeedMetrics && hasChatboxMetrics(message)"
-                        class="chatbox-metrics"
-                    >
-                        <span class="chatbox-metric" v-if="message.metrics.promptTokens">
-                            Prompt
-                            <strong v-text="formatChatboxInteger(message.metrics.promptTokens)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.completionTokens">
-                            Output
-                            <strong v-text="formatChatboxInteger(message.metrics.completionTokens)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.prefillSpeed">
-                            Prefill
-                            <strong v-text="formatChatboxRate(message.metrics.prefillSpeed)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.decodeSpeed">
-                            Decode
-                            <strong v-text="formatChatboxRate(message.metrics.decodeSpeed)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.ttftMs">
-                            TTFT
-                            <strong v-text="formatChatboxDuration(message.metrics.ttftMs)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.totalDurationMs">
-                            Total
-                            <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
-                        </span>
-                    </div>
-                </article>
+                            v-if="chatbox.settings.showSpeedMetrics && hasChatboxMetrics(message)"
+                            class="chatbox-metrics"
+                        >
+                            <span class="chatbox-metric" v-if="message.metrics.promptTokens">
+                                Prompt
+                                <strong v-text="formatChatboxInteger(message.metrics.promptTokens)"></strong>
+                            </span>
+                            <span class="chatbox-metric" v-if="message.metrics.completionTokens">
+                                Output
+                                <strong v-text="formatChatboxInteger(message.metrics.completionTokens)"></strong>
+                            </span>
+                            <span class="chatbox-metric" v-if="message.metrics.prefillSpeed">
+                                Prefill
+                                <strong v-text="formatChatboxRate(message.metrics.prefillSpeed)"></strong>
+                            </span>
+                            <span class="chatbox-metric" v-if="message.metrics.decodeSpeed">
+                                Decode
+                                <strong v-text="formatChatboxRate(message.metrics.decodeSpeed)"></strong>
+                            </span>
+                            <span class="chatbox-metric" v-if="message.metrics.ttftMs">
+                                TTFT
+                                <strong v-text="formatChatboxDuration(message.metrics.ttftMs)"></strong>
+                            </span>
+                            <span class="chatbox-metric" v-if="message.metrics.totalDurationMs">
+                                Total
+                                <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
+                            </span>
+                        </div>
+                    </article>
+                </div>
             </div>
 
             <div v-if="chatbox.error" class="tool-alert error" v-text="chatbox.error"></div>
@@ -136,14 +229,15 @@
                 <textarea
                     class="tool-textarea tool-composer-input chatbox-composer-input"
                     v-model="chatbox.draft"
-                    placeholder="Send a message. Press Enter to send, Shift + Enter for a new line."
+                    placeholder="Type a message. Press Enter to send, Ctrl + Enter for a new line."
                     @keydown="handleChatboxComposerKeydown"
                 ></textarea>
 
                 <div class="tool-composer-footer">
                     <p>
                         Uses the OpenAI-compatible <code>/chat/completions</code> shape. The <code>think</code>
-                        field is sent only when you switch Think Mode away from Default.
+                        field is sent only when you switch Think Mode away from Default. Press <code>Enter</code>
+                        to send and <code>Ctrl + Enter</code> for a new line.
                     </p>
                     <button
                         type="submit"
@@ -203,6 +297,9 @@
                         <i class="fa-solid fa-plug-circle-bolt fa-fw"></i>
                         <span v-text="chatbox.fetchingModels ? 'Checking...' : 'Fetch models'"></span>
                     </button>
+                    <button type="button" class="tool-ghost-button" @click="chatbox.showControlsPanel = true">
+                        Open controls
+                    </button>
                     <button type="button" class="tool-ghost-button" @click="clearChatboxSettings">
                         Clear saved
                     </button>
@@ -259,156 +356,176 @@
                 </p>
             </section>
 
-            <details class="tool-panel chatbox-card chatbox-foldout" open>
-                <summary class="chatbox-foldout-summary">
-                    <div>
-                        <p class="tool-panel-kicker">Reasoning</p>
-                        <h2>Think & Display</h2>
-                    </div>
-                    <span class="chatbox-foldout-indicator">
-                        <i class="fa-solid fa-chevron-down fa-fw"></i>
-                    </span>
-                </summary>
-                <div class="chatbox-foldout-body">
-
-                <label class="tool-field">
-                    <span>System Prompt</span>
-                    <textarea
-                        class="tool-textarea tool-config-textarea"
-                        v-model="chatbox.settings.systemPrompt"
-                        placeholder="Optional system prompt for every turn."
-                    ></textarea>
-                </label>
-
-                <label class="tool-field">
-                    <span>Think Mode</span>
-                    <select class="tool-input tool-select" v-model="chatbox.settings.thinkMode">
-                        <option value="default">Default</option>
-                        <option value="on">Force on</option>
-                        <option value="off">Force off</option>
-                    </select>
-                </label>
-
-                <div class="tool-checks">
-                    <label class="tool-check">
-                        <input type="checkbox" v-model="chatbox.settings.showThinking" />
-                        <span>Show reasoning / think blocks when the endpoint returns them.</span>
-                    </label>
-                    <label class="tool-check">
-                        <input type="checkbox" v-model="chatbox.settings.excludeThinkingFromContext" />
-                        <span>Strip thinking blocks from follow-up context to keep prompts leaner.</span>
-                    </label>
-                    <label class="tool-check">
-                        <input type="checkbox" v-model="chatbox.settings.stream" />
-                        <span>Use streaming responses whenever the endpoint supports SSE.</span>
-                    </label>
-                    <label class="tool-check">
-                        <input type="checkbox" v-model="chatbox.settings.showSpeedMetrics" />
-                        <span>Show prefill and decode speeds when timing or usage data is available.</span>
-                    </label>
-                </div>
-                </div>
-            </details>
-
-            <details class="tool-panel chatbox-card chatbox-foldout">
-                <summary class="chatbox-foldout-summary">
-                    <div>
-                        <p class="tool-panel-kicker">Sampling</p>
-                        <h2>Generation Controls</h2>
-                    </div>
-                    <span class="chatbox-foldout-indicator">
-                        <i class="fa-solid fa-chevron-down fa-fw"></i>
-                    </span>
-                </summary>
-                <div class="chatbox-foldout-body">
-
-                <div class="tool-inline-fields">
-                    <label class="tool-field">
-                        <span>Temperature</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.temperature" inputmode="decimal" placeholder="0.7" />
-                    </label>
-                    <label class="tool-field">
-                        <span>Max Tokens</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.maxTokens" inputmode="numeric" placeholder="Optional" />
-                    </label>
-                </div>
-
-                <div class="tool-inline-fields">
-                    <label class="tool-field">
-                        <span>Top P</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.topP" inputmode="decimal" placeholder="Optional" />
-                    </label>
-                    <label class="tool-field">
-                        <span>Top K</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.topK" inputmode="numeric" placeholder="Optional" />
-                    </label>
-                </div>
-
-                <div class="tool-inline-fields">
-                    <label class="tool-field">
-                        <span>Min P</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.minP" inputmode="decimal" placeholder="Optional" />
-                    </label>
-                    <label class="tool-field">
-                        <span>Repeat Penalty</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.repeatPenalty" inputmode="decimal" placeholder="Optional" />
-                    </label>
-                </div>
-
-                <div class="tool-inline-fields">
-                    <label class="tool-field">
-                        <span>Presence Penalty</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.presencePenalty" inputmode="decimal" placeholder="Optional" />
-                    </label>
-                    <label class="tool-field">
-                        <span>Frequency Penalty</span>
-                        <input class="tool-input" v-model.trim="chatbox.settings.frequencyPenalty" inputmode="decimal" placeholder="Optional" />
-                    </label>
-                </div>
-
-                <label class="tool-field">
-                    <span>Seed</span>
-                    <input class="tool-input" v-model.trim="chatbox.settings.seed" inputmode="numeric" placeholder="Optional" />
-                </label>
-
-                <label class="tool-field">
-                    <span>Stop Sequences</span>
-                    <input
-                        class="tool-input"
-                        v-model="chatbox.settings.stopSequences"
-                        placeholder="Comma or newline separated"
-                    />
-                </label>
-                </div>
-            </details>
-
-            <details class="tool-panel chatbox-card chatbox-foldout">
-                <summary class="chatbox-foldout-summary">
-                    <div>
-                        <p class="tool-panel-kicker">Advanced</p>
-                        <h2>Extra Request Body</h2>
-                    </div>
-                    <span class="chatbox-foldout-indicator">
-                        <i class="fa-solid fa-chevron-down fa-fw"></i>
-                    </span>
-                </summary>
-                <div class="chatbox-foldout-body">
-
-                <label class="tool-field">
-                    <span>Extra Body JSON</span>
-                    <textarea
-                        class="tool-textarea chatbox-json-textarea"
-                        v-model="chatbox.settings.extraBody"
-                        placeholder='{"cache_prompt": true}'
-                    ></textarea>
-                </label>
-
-                <p class="tool-note">
-                    This JSON is merged into the final request body after the built-in controls, so you can pass
-                    extra vendor-specific fields without editing the code again.
-                </p>
-                </div>
-            </details>
         </aside>
     </section>
+
+    <transition name="fade">
+        <div
+            v-if="chatbox.showControlsPanel"
+            class="chatbox-controls-overlay"
+            @click.self="chatbox.showControlsPanel = false"
+        >
+            <section class="tool-panel chatbox-controls-panel">
+                <div class="chatbox-controls-header">
+                    <div>
+                        <p class="tool-panel-kicker">Controls</p>
+                        <h2>Reasoning, Sampling & Advanced</h2>
+                    </div>
+                    <button type="button" class="tool-icon-button" @click="chatbox.showControlsPanel = false">
+                        <i class="fa-solid fa-xmark fa-fw"></i>
+                    </button>
+                </div>
+
+                <div class="chatbox-controls-body">
+                    <details class="tool-panel chatbox-card chatbox-foldout" open>
+                        <summary class="chatbox-foldout-summary">
+                            <div>
+                                <p class="tool-panel-kicker">Reasoning</p>
+                                <h2>Think & Display</h2>
+                            </div>
+                            <span class="chatbox-foldout-indicator">
+                                <i class="fa-solid fa-chevron-down fa-fw"></i>
+                            </span>
+                        </summary>
+                        <div class="chatbox-foldout-body">
+                            <label class="tool-field">
+                                <span>System Prompt</span>
+                                <textarea
+                                    class="tool-textarea tool-config-textarea"
+                                    v-model="chatbox.settings.systemPrompt"
+                                    placeholder="Optional system prompt for every turn."
+                                ></textarea>
+                            </label>
+
+                            <label class="tool-field">
+                                <span>Think Mode</span>
+                                <select class="tool-input tool-select" v-model="chatbox.settings.thinkMode">
+                                    <option value="default">Default</option>
+                                    <option value="on">Force on</option>
+                                    <option value="off">Force off</option>
+                                </select>
+                            </label>
+
+                            <div class="tool-checks">
+                                <label class="tool-check">
+                                    <input type="checkbox" v-model="chatbox.settings.showThinking" />
+                                    <span>Show reasoning / think blocks when the endpoint returns them.</span>
+                                </label>
+                                <label class="tool-check">
+                                    <input type="checkbox" v-model="chatbox.settings.excludeThinkingFromContext" />
+                                    <span>Strip thinking blocks from follow-up context to keep prompts leaner.</span>
+                                </label>
+                                <label class="tool-check">
+                                    <input type="checkbox" v-model="chatbox.settings.stream" />
+                                    <span>Use streaming responses whenever the endpoint supports streaming.</span>
+                                </label>
+                                <label class="tool-check">
+                                    <input type="checkbox" v-model="chatbox.settings.showSpeedMetrics" />
+                                    <span>Show prefill and decode speeds when timing or usage data is available.</span>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="tool-panel chatbox-card chatbox-foldout">
+                        <summary class="chatbox-foldout-summary">
+                            <div>
+                                <p class="tool-panel-kicker">Sampling</p>
+                                <h2>Generation Controls</h2>
+                            </div>
+                            <span class="chatbox-foldout-indicator">
+                                <i class="fa-solid fa-chevron-down fa-fw"></i>
+                            </span>
+                        </summary>
+                        <div class="chatbox-foldout-body">
+                            <div class="tool-inline-fields">
+                                <label class="tool-field">
+                                    <span>Temperature</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.temperature" inputmode="decimal" placeholder="0.7" />
+                                </label>
+                                <label class="tool-field">
+                                    <span>Max Tokens</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.maxTokens" inputmode="numeric" placeholder="Optional" />
+                                </label>
+                            </div>
+
+                            <div class="tool-inline-fields">
+                                <label class="tool-field">
+                                    <span>Top P</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.topP" inputmode="decimal" placeholder="Optional" />
+                                </label>
+                                <label class="tool-field">
+                                    <span>Top K</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.topK" inputmode="numeric" placeholder="Optional" />
+                                </label>
+                            </div>
+
+                            <div class="tool-inline-fields">
+                                <label class="tool-field">
+                                    <span>Min P</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.minP" inputmode="decimal" placeholder="Optional" />
+                                </label>
+                                <label class="tool-field">
+                                    <span>Repeat Penalty</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.repeatPenalty" inputmode="decimal" placeholder="Optional" />
+                                </label>
+                            </div>
+
+                            <div class="tool-inline-fields">
+                                <label class="tool-field">
+                                    <span>Presence Penalty</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.presencePenalty" inputmode="decimal" placeholder="Optional" />
+                                </label>
+                                <label class="tool-field">
+                                    <span>Frequency Penalty</span>
+                                    <input class="tool-input" v-model.trim="chatbox.settings.frequencyPenalty" inputmode="decimal" placeholder="Optional" />
+                                </label>
+                            </div>
+
+                            <label class="tool-field">
+                                <span>Seed</span>
+                                <input class="tool-input" v-model.trim="chatbox.settings.seed" inputmode="numeric" placeholder="Optional" />
+                            </label>
+
+                            <label class="tool-field">
+                                <span>Stop Sequences</span>
+                                <input
+                                    class="tool-input"
+                                    v-model="chatbox.settings.stopSequences"
+                                    placeholder="Comma or newline separated"
+                                />
+                            </label>
+                        </div>
+                    </details>
+
+                    <details class="tool-panel chatbox-card chatbox-foldout">
+                        <summary class="chatbox-foldout-summary">
+                            <div>
+                                <p class="tool-panel-kicker">Advanced</p>
+                                <h2>Extra Request Body</h2>
+                            </div>
+                            <span class="chatbox-foldout-indicator">
+                                <i class="fa-solid fa-chevron-down fa-fw"></i>
+                            </span>
+                        </summary>
+                        <div class="chatbox-foldout-body">
+                            <label class="tool-field">
+                                <span>Extra Body JSON</span>
+                                <textarea
+                                    class="tool-textarea chatbox-json-textarea"
+                                    v-model="chatbox.settings.extraBody"
+                                    placeholder='{"cache_prompt": true}'
+                                ></textarea>
+                            </label>
+
+                            <p class="tool-note">
+                                This JSON is merged into the final request body after the built-in controls, so you can pass
+                                extra vendor-specific fields without editing the code again.
+                            </p>
+                        </div>
+                    </details>
+                </div>
+            </section>
+        </div>
+    </transition>
 </div>
