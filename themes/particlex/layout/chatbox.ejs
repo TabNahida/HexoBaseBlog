@@ -458,6 +458,14 @@
                                     <span>Show reasoning / think blocks when the endpoint returns them.</span>
                                 </label>
                                 <label class="tool-check">
+                                    <input type="checkbox" v-model="chatbox.settings.renderUserMarkdown" />
+                                    <span>Render user messages as markdown, including math formulas and fenced code blocks.</span>
+                                </label>
+                                <label class="tool-check">
+                                    <input type="checkbox" v-model="chatbox.settings.renderThinkingMarkdown" />
+                                    <span>Render think / reasoning content as markdown instead of plain text.</span>
+                                </label>
+                                <label class="tool-check">
                                     <input type="checkbox" v-model="chatbox.settings.excludeThinkingFromContext" />
                                     <span>Strip thinking blocks from follow-up context to keep prompts leaner.</span>
                                 </label>

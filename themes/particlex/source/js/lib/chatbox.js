@@ -7,6 +7,8 @@ const createChatboxSettings = () => ({
     stream: true,
     thinkMode: "default",
     showThinking: true,
+    renderUserMarkdown: true,
+    renderThinkingMarkdown: true,
     excludeThinkingFromContext: true,
     showSpeedMetrics: true,
     temperature: "0.7",
@@ -146,6 +148,15 @@ mixins.chatbox = {
         },
         "chatbox.activeConversationId"() {
             this.persistChatboxConversations();
+        },
+        "chatbox.settings.renderUserMarkdown"() {
+            this.refreshChatboxUi(false);
+        },
+        "chatbox.settings.renderThinkingMarkdown"() {
+            this.refreshChatboxUi(false);
+        },
+        "chatbox.settings.showThinking"() {
+            this.refreshChatboxUi(false);
         },
     },
     methods: {
@@ -643,24 +654,64 @@ mixins.chatbox = {
             }
             return this.escapeChatboxHtml(source).replace(/\n/g, "<br>");
         },
+        renderChatboxPlainText(text) {
+            const source = typeof text === "string" ? text : "";
+            if (!source) return "";
+            return this.escapeChatboxHtml(source).replace(/\n/g, "<br>");
+        },
         renderChatboxMessageHtml(message) {
-            return this.renderChatboxMarkdown(this.getChatboxMessageBodyText(message));
+            const text = this.getChatboxMessageBodyText(message);
+            const renderAsMarkdown =
+                !message || message.role !== "user" || this.chatbox.settings.renderUserMarkdown;
+            return renderAsMarkdown
+                ? this.renderChatboxMarkdown(text)
+                : this.renderChatboxPlainText(text);
         },
         renderChatboxReasoningHtml(message) {
-            return this.renderChatboxMarkdown(message?.reasoning || "");
+            const text = message?.reasoning || "";
+            return this.chatbox.settings.renderThinkingMarkdown
+                ? this.renderChatboxMarkdown(text)
+                : this.renderChatboxPlainText(text);
         },
         refreshChatboxRichContent() {
             this.$nextTick(() => {
                 const wrap = this.$refs.chatboxLog;
-                if (!wrap || typeof window === "undefined" || !window.hljs) return;
-                wrap.querySelectorAll("pre code").forEach((code) => {
-                    if (code.dataset.chatboxHighlighted === "1") return;
-                    try {
-                        window.hljs.highlightElement(code);
-                        code.dataset.chatboxHighlighted = "1";
-                    } catch (error) {
-                        console.warn("Failed to highlight a chatbox code block.", error);
+                if (!wrap || typeof window === "undefined") return;
+
+                wrap.querySelectorAll(".chatbox-markdown").forEach((node) => {
+                    if (
+                        window.particlexRenderMath &&
+                        typeof window.particlexRenderMath === "function"
+                    ) {
+                        try {
+                            window.particlexRenderMath(node);
+                        } catch (error) {
+                            console.warn("Failed to render chatbox math.", error);
+                        }
                     }
+
+                    if (
+                        window.particlexEnhanceCodeBlocks &&
+                        typeof window.particlexEnhanceCodeBlocks === "function"
+                    ) {
+                        try {
+                            window.particlexEnhanceCodeBlocks(node, this);
+                        } catch (error) {
+                            console.warn("Failed to enhance chatbox code blocks.", error);
+                        }
+                        return;
+                    }
+
+                    if (!window.hljs) return;
+                    node.querySelectorAll("pre code").forEach((code) => {
+                        if (code.dataset.chatboxHighlighted === "1") return;
+                        try {
+                            window.hljs.highlightElement(code);
+                            code.dataset.chatboxHighlighted = "1";
+                        } catch (error) {
+                            console.warn("Failed to highlight a chatbox code block.", error);
+                        }
+                    });
                 });
             });
         },
