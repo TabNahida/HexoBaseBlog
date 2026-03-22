@@ -33,6 +33,10 @@ menu:
         name: id-card
         theme: solid
         link: /about
+    Tools:
+        name: toolbox
+        theme: solid
+        link: /tools
     Archives:
         name: box-archive
         theme: solid

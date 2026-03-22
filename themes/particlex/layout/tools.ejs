@@ -1,0 +1,249 @@
+<div class="tool-page">
+    <section class="tool-hero">
+        <div class="tool-hero-copy">
+            <p class="tool-eyebrow">TOOLBOX</p>
+            <h1><%= page.title %></h1>
+            <p>
+                Browser-side utilities live here. The first slot is a configurable OpenAI-compatible chat
+                console, and this page is structured so more tools can be added without changing the theme
+                layout again.
+            </p>
+        </div>
+        <div class="tool-hero-meta">
+            <div class="tool-meta-card">
+                <span class="tool-meta-label">Current tool</span>
+                <strong v-text="activeTool.name"></strong>
+                <p v-text="activeTool.summary"></p>
+            </div>
+        </div>
+    </section>
+
+    <section class="tool-grid">
+        <aside class="tool-catalog">
+            <button
+                v-for="tool in tools"
+                :key="tool.id"
+                type="button"
+                class="tool-panel tool-card"
+                :class="{ active: activeToolId === tool.id, disabled: tool.disabled }"
+                :disabled="tool.disabled"
+                @click="selectTool(tool.id)"
+            >
+                <div class="tool-card-header">
+                    <span class="tool-card-icon">
+                        <i :class="tool.icon"></i>
+                    </span>
+                    <span class="tool-card-tag" v-text="tool.status"></span>
+                </div>
+                <div class="tool-card-body">
+                    <h2 v-text="tool.name"></h2>
+                    <p v-text="tool.summary"></p>
+                </div>
+            </button>
+            <div class="tool-panel tool-catalog-note">
+                <p>
+                    More utilities can be added here later. The catalog and workspace are already separated so
+                    future tools can reuse the same page.
+                </p>
+            </div>
+        </aside>
+
+        <div class="tool-workspace" v-if="activeToolId === 'openai-chat'">
+            <section class="tool-panel tool-settings">
+                <div class="tool-panel-header">
+                    <div>
+                        <p class="tool-panel-kicker">Connection</p>
+                        <h2>Chat Settings</h2>
+                    </div>
+                    <button type="button" class="tool-ghost-button" @click="clearToolChatSettings">
+                        Clear saved
+                    </button>
+                </div>
+
+                <label class="tool-field">
+                    <span>API Base URL</span>
+                    <input
+                        class="tool-input"
+                        v-model.trim="toolChat.settings.baseUrl"
+                        placeholder="https://api.openai.com/v1"
+                    />
+                </label>
+
+                <label class="tool-field">
+                    <span>API Key</span>
+                    <div class="tool-secret-input">
+                        <input
+                            class="tool-input"
+                            :type="toolChat.showKey ? 'text' : 'password'"
+                            v-model.trim="toolChat.settings.apiKey"
+                            placeholder="sk-..."
+                            autocomplete="off"
+                        />
+                        <button
+                            type="button"
+                            class="tool-icon-button"
+                            :aria-label="toolChat.showKey ? 'Hide API key' : 'Show API key'"
+                            @click="toolChat.showKey = !toolChat.showKey"
+                        >
+                            <i class="fa-solid" :class="toolChat.showKey ? 'fa-eye-slash' : 'fa-eye'"></i>
+                        </button>
+                    </div>
+                </label>
+
+                <div class="tool-inline-fields">
+                    <label class="tool-field">
+                        <span>Model</span>
+                        <input
+                            class="tool-input"
+                            v-model.trim="toolChat.settings.model"
+                            placeholder="gpt-4.1-mini"
+                        />
+                    </label>
+                    <label class="tool-field">
+                        <span>Temperature</span>
+                        <input
+                            class="tool-input"
+                            v-model.trim="toolChat.settings.temperature"
+                            inputmode="decimal"
+                            placeholder="0.7"
+                        />
+                    </label>
+                </div>
+
+                <label class="tool-field">
+                    <span>Max Tokens</span>
+                    <input
+                        class="tool-input"
+                        v-model.trim="toolChat.settings.maxTokens"
+                        inputmode="numeric"
+                        placeholder="Optional"
+                    />
+                </label>
+
+                <label class="tool-field">
+                    <span>System Prompt</span>
+                    <textarea
+                        class="tool-textarea tool-config-textarea"
+                        v-model="toolChat.settings.systemPrompt"
+                        placeholder="Optional system prompt for every turn."
+                    ></textarea>
+                </label>
+
+                <div class="tool-checks">
+                    <label class="tool-check">
+                        <input type="checkbox" v-model="toolChat.settings.stream" />
+                        <span>Stream assistant output when the endpoint supports SSE.</span>
+                    </label>
+                    <label class="tool-check">
+                        <input type="checkbox" v-model="toolChat.settings.rememberKey" />
+                        <span>Remember the API key in this browser's local storage.</span>
+                    </label>
+                </div>
+
+                <div class="tool-settings-stack">
+                    <div class="tool-settings-card">
+                        <span>Resolved endpoint</span>
+                        <code v-text="toolChatEndpoint"></code>
+                    </div>
+                    <div class="tool-settings-card">
+                        <span>Storage</span>
+                        <p v-text="toolChatStorageHint"></p>
+                    </div>
+                </div>
+
+                <p class="tool-note">
+                    This tool runs entirely in the browser. Your OpenAI-compatible endpoint must allow CORS for
+                    the deployed domain.
+                </p>
+            </section>
+
+            <section class="tool-panel tool-console">
+                <div class="tool-console-toolbar">
+                    <div>
+                        <p class="tool-panel-kicker">Console</p>
+                        <h2>Compatible Chat</h2>
+                    </div>
+                    <div class="tool-console-actions">
+                        <button
+                            type="button"
+                            class="tool-ghost-button"
+                            :disabled="!toolChat.messages.length"
+                            @click="resetToolChatConversation"
+                        >
+                            New chat
+                        </button>
+                        <button
+                            type="button"
+                            class="tool-danger-button"
+                            :disabled="!toolChat.sending"
+                            @click="abortToolChatRequest"
+                        >
+                            Stop
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tool-status-bar">
+                    <span class="tool-status-pill" v-text="toolChatModeLabel"></span>
+                    <span class="tool-status-pill" v-text="toolChatRequestLabel"></span>
+                </div>
+
+                <div class="tool-chat-log" ref="toolChatMessages">
+                    <div v-if="!toolChat.messages.length" class="tool-empty-state">
+                        <i class="fa-solid fa-satellite-dish"></i>
+                        <h3>Ready to connect</h3>
+                        <p>
+                            Set your base URL, API key and model, then start chatting. Multi-turn history stays in
+                            the current page session.
+                        </p>
+                    </div>
+
+                    <article
+                        v-for="message in toolChat.messages"
+                        :key="message.id"
+                        class="tool-chat-message"
+                        :class="'role-' + message.role"
+                    >
+                        <div class="tool-chat-role">
+                            <span class="tool-role-badge" v-text="message.role === 'user' ? 'You' : 'Assistant'"></span>
+                            <time class="tool-message-time" v-text="formatToolTime(message.createdAt)"></time>
+                        </div>
+                        <div class="tool-chat-bubble" :class="{ pending: message.pending }">
+                            <div
+                                class="tool-chat-text"
+                                v-text="message.content || (message.pending ? 'Thinking...' : '')"
+                            ></div>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-if="toolChat.error" class="tool-alert error" v-text="toolChat.error"></div>
+                <div v-if="toolChat.status" class="tool-alert info" v-text="toolChat.status"></div>
+
+                <form class="tool-composer" @submit.prevent="sendToolChatMessage">
+                    <textarea
+                        class="tool-textarea tool-composer-input"
+                        v-model="toolChat.draft"
+                        placeholder="Send a message. Press Enter to send, Shift + Enter for a new line."
+                        @keydown="handleToolComposerKeydown"
+                    ></textarea>
+
+                    <div class="tool-composer-footer">
+                        <p>
+                            The request uses the OpenAI-compatible <code>/chat/completions</code> shape and keeps
+                            the current conversation as context.
+                        </p>
+                        <button
+                            type="submit"
+                            class="tool-primary-button"
+                            :disabled="toolChat.sending || !toolChat.draft.trim()"
+                        >
+                            <i class="fa-solid fa-paper-plane fa-fw"></i>
+                            <span v-text="toolChat.sending ? 'Sending...' : 'Send'"></span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </section>
+</div>
