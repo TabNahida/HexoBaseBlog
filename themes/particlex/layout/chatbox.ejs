@@ -118,7 +118,7 @@
             </div>
 
             <div class="tool-chat-log chatbox-log" ref="chatboxLog">
-                <div class="chatbox-thread" :key="chatbox.viewConversationId || chatbox.activeConversationId">
+                <div class="chatbox-thread" :key="`${chatbox.viewConversationId || chatbox.activeConversationId}-${chatbox.threadKey}`">
                     <div v-if="!chatbox.viewMessages.length" class="tool-empty-state chatbox-empty">
                         <i class="fa-solid fa-wave-square"></i>
                         <h3>Pick an endpoint, then start</h3>

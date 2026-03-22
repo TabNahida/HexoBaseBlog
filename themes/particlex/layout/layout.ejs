@@ -53,7 +53,7 @@
         </transition>
         <% } %>
     </div>
-    <script src="<%- url_for("/js/main.js") %>"></script>
+    <script src="<%- url_for("/js/main.js") %>?v=<%= Date.now() %>"></script>
     <% if (type === "post" && page.comments) { %>
     <%- partial("comment") %>
     <% } %>

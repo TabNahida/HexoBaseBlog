@@ -33,6 +33,7 @@ mixins.chatbox = {
                 activeConversationId: "",
                 viewConversationId: "",
                 viewMessages: [],
+                threadKey: 0,
                 models: [],
                 editingMessageId: "",
                 editingDraft: "",
@@ -302,6 +303,7 @@ mixins.chatbox = {
             });
             this.cancelEditChatboxMessage();
             this.syncChatboxView();
+            this.rebuildChatboxThread("top");
             return conversation;
         },
         getChatboxConversationById(conversationId = this.chatbox.activeConversationId) {
@@ -368,6 +370,20 @@ mixins.chatbox = {
         syncChatboxView(scrollToBottom = false) {
             this.syncChatboxViewState();
             this.$nextTick(() => this.refreshChatboxUi(scrollToBottom));
+        },
+        rebuildChatboxThread(scrollMode = "") {
+            this.setChatboxState({
+                threadKey: (this.chatbox.threadKey || 0) + 1,
+            });
+            this.$nextTick(() => {
+                const wrap = this.$refs.chatboxLog;
+                if (wrap) {
+                    wrap.scrollLeft = 0;
+                    if (scrollMode === "top") wrap.scrollTop = 0;
+                    if (scrollMode === "bottom") wrap.scrollTop = wrap.scrollHeight;
+                }
+                this.refreshChatboxUi(false);
+            });
         },
         patchChatboxConversation(conversation, updater, options = {}) {
             const conversationId = this.resolveChatboxConversationId(conversation);
@@ -441,6 +457,7 @@ mixins.chatbox = {
                 }
             );
             this.syncChatboxView();
+            this.rebuildChatboxThread(Array.isArray(messages) && messages.length ? "bottom" : "top");
             return updated;
         },
         replaceChatboxMessages(messages) {
@@ -517,6 +534,7 @@ mixins.chatbox = {
             this.chatbox.error = "";
             this.chatbox.status = "";
             this.syncChatboxView(true);
+            this.rebuildChatboxThread("top");
         },
         getChatboxConversationPreview(conversation) {
             if (!conversation) return "";
@@ -945,6 +963,7 @@ mixins.chatbox = {
                 this.createChatboxConversation();
                 this.chatbox.status = "Conversation deleted.";
                 this.syncChatboxView();
+                this.rebuildChatboxThread("top");
                 return;
             }
 
@@ -958,11 +977,13 @@ mixins.chatbox = {
 
             this.chatbox.status = "Conversation deleted.";
             this.syncChatboxView(isActive);
+            this.rebuildChatboxThread(isActive ? "top" : "");
         },
         scrollChatboxToBottom() {
             this.$nextTick(() => {
                 const wrap = this.$refs.chatboxLog;
                 if (!wrap) return;
+                wrap.scrollLeft = 0;
                 wrap.scrollTop = wrap.scrollHeight;
             });
         },
