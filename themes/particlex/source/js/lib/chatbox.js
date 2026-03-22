@@ -307,6 +307,27 @@ mixins.chatbox = {
             });
             return conversation;
         },
+        openChatboxTemplate(status = "") {
+            this.cancelEditChatboxMessage();
+            this.setChatboxState({
+                activeConversationId: "",
+                viewConversationId: "chatbox-template",
+                viewMessages: [],
+                search: "",
+                threadKey: (this.chatbox.threadKey || 0) + 1,
+            });
+            this.chatbox.error = "";
+            this.chatbox.status = status;
+            this.$nextTick(() => {
+                const wrap = this.$refs.chatboxLog;
+                if (wrap) {
+                    wrap.scrollLeft = 0;
+                    wrap.scrollTop = 0;
+                }
+                this.scrollChatboxSessionListToTop();
+                this.refreshChatboxUi(false);
+            });
+        },
         getChatboxConversationById(conversationId = this.chatbox.activeConversationId) {
             return this.chatbox.conversations.find((conversation) => conversation.id === conversationId) || null;
         },
@@ -475,8 +496,7 @@ mixins.chatbox = {
         },
         ensureChatboxConversation() {
             const conversation = this.getChatboxConversationById();
-            if (conversation) return conversation;
-            return this.createChatboxConversation();
+            return conversation || null;
         },
         touchChatboxConversation(conversation, titleSource = "") {
             return this.patchChatboxConversation(conversation, null, {
@@ -506,13 +526,13 @@ mixins.chatbox = {
         },
         restoreChatboxConversations() {
             if (typeof window === "undefined" || !window.localStorage) {
-                this.createChatboxConversation();
+                this.openChatboxTemplate();
                 return;
             }
             try {
                 const raw = window.localStorage.getItem(this.chatboxConversationStorageKey);
                 if (!raw) {
-                    this.createChatboxConversation();
+                    this.openChatboxTemplate();
                     return;
                 }
                 const saved = JSON.parse(raw);
@@ -526,28 +546,32 @@ mixins.chatbox = {
                         updatedAt: conversation.updatedAt || conversation.createdAt || Date.now(),
                         messages: Array.isArray(conversation.messages) ? conversation.messages.slice() : [],
                     }))
+                    .filter((conversation) => Array.isArray(conversation.messages) && conversation.messages.length)
                     .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0));
                 this.setChatboxState({
                     conversations: restoredConversations,
                 });
 
                 if (!this.chatbox.conversations.length) {
-                    this.createChatboxConversation();
+                    this.openChatboxTemplate();
                     return;
                 }
 
                 const targetId = saved?.activeConversationId;
+                if (!targetId) {
+                    this.openChatboxTemplate();
+                    return;
+                }
                 const active = this.chatbox.conversations.find((conversation) => conversation.id === targetId) || this.chatbox.conversations[0];
-                this.setChatboxState({
-                    activeConversationId: active.id,
+                this.activateChatboxConversation(active.id, {
+                    scrollThread: "top",
                 });
-                this.syncChatboxViewState();
             } catch (error) {
                 console.warn("Failed to restore chatbox conversations.", error);
                 this.setChatboxState({
                     conversations: [],
                 });
-                this.createChatboxConversation();
+                this.openChatboxTemplate();
             }
         },
         persistChatboxConversations() {
@@ -909,20 +933,11 @@ mixins.chatbox = {
         },
         resetChatboxConversation() {
             if (this.chatbox.sending) this.abortChatboxRequest();
-            const current = this.getChatboxConversationById();
-            if (current && this.isChatboxConversationEmpty(current.id)) {
-                this.chatbox.error = "";
-                this.chatbox.status = "Finish the current empty conversation before creating another one.";
-                this.activateChatboxConversation(current.id, {
-                    scrollThread: "top",
-                    scrollSessionsTop: true,
-                });
-                return current;
-            }
-            this.createChatboxConversation();
-            this.cancelEditChatboxMessage();
-            this.chatbox.error = "";
-            this.chatbox.status = "Started a new conversation.";
+            this.openChatboxTemplate(
+                this.chatbox.activeConversationId || this.chatbox.viewConversationId === "chatbox-template"
+                    ? "Ready for a new conversation."
+                    : "Opened a fresh conversation template."
+            );
         },
         abortChatboxRequest() {
             if (!this.chatboxAbortController) return;
@@ -1008,8 +1023,7 @@ mixins.chatbox = {
             this.chatbox.error = "";
 
             if (!this.chatbox.conversations.length) {
-                this.createChatboxConversation();
-                this.chatbox.status = "Conversation deleted.";
+                this.openChatboxTemplate("Conversation deleted.");
                 return;
             }
 
@@ -1650,7 +1664,8 @@ mixins.chatbox = {
 
             this.chatbox.error = "";
             this.chatbox.status = "";
-            const conversation = this.ensureChatboxConversation();
+            let conversation = this.ensureChatboxConversation();
+            if (!conversation) conversation = this.createChatboxConversation();
             const conversationId = conversation.id;
             const currentMessages = this.getChatboxConversationById(conversationId)?.messages || [];
             const historyMessages = currentMessages.slice();
