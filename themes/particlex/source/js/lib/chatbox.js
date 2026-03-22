@@ -36,7 +36,6 @@ mixins.chatbox = {
                 editingDraft: "",
                 showControlsPanel: false,
                 activeControlsSection: "reasoning",
-                renderNonce: 0,
                 sending: false,
                 fetchingModels: false,
                 error: "",
@@ -189,6 +188,30 @@ mixins.chatbox = {
                 if (!unique.includes(normalized)) unique.push(normalized);
             }
             return unique.join("\n\n");
+        },
+        pickChatboxText(...parts) {
+            for (const part of parts) {
+                if (typeof part === "string" && part.length) return part;
+            }
+            return "";
+        },
+        mergeChatboxStreamText(existing = "", incoming = "") {
+            if (!incoming) return existing || "";
+            if (!existing) return incoming;
+            if (incoming === existing) return existing;
+            if (incoming.startsWith(existing)) return incoming;
+            if (existing.endsWith(incoming)) return existing;
+            return `${existing}${incoming}`;
+        },
+        combineChatboxReasoning(primary = "", secondary = "") {
+            const first = this.normalizeChatboxText(primary);
+            const second = this.normalizeChatboxText(secondary);
+            if (!first) return second;
+            if (!second) return first;
+            if (first === second) return first;
+            if (first.includes(second)) return first;
+            if (second.includes(first)) return second;
+            return `${first}\n\n${second}`;
         },
         buildChatboxHeaders(includeJson = false) {
             const headers = {
@@ -441,7 +464,6 @@ mixins.chatbox = {
             });
         },
         refreshChatboxUi(scrollToBottom = false) {
-            this.chatbox.renderNonce += 1;
             if (typeof this.$forceUpdate === "function") this.$forceUpdate();
             this.refreshChatboxRichContent();
             if (scrollToBottom) this.scrollChatboxToBottom();
@@ -527,7 +549,7 @@ mixins.chatbox = {
         },
         extractChatboxChunkContent(json) {
             const choice = json?.choices?.[0];
-            return this.mergeChatboxText(
+            return this.pickChatboxText(
                 this.extractChatboxText(choice?.delta?.content),
                 this.extractChatboxText(choice?.delta?.text),
                 this.extractChatboxText(choice?.delta),
@@ -548,7 +570,7 @@ mixins.chatbox = {
         },
         extractChatboxChunkReasoning(json, deltaOnly = false) {
             const choice = json?.choices?.[0];
-            return this.mergeChatboxText(
+            return this.pickChatboxText(
                 this.extractChatboxReasoning(choice, deltaOnly),
                 this.extractChatboxText(json?.delta?.reasoning_content),
                 this.extractChatboxText(json?.delta?.reasoning),
@@ -565,11 +587,13 @@ mixins.chatbox = {
             );
         },
         applyChatboxAssistantUpdate(message, rawText = "", reasoningText = "") {
-            if (rawText) message.rawContent += rawText;
-            if (reasoningText) message.reasoningRaw = this.mergeChatboxText(message.reasoningRaw, reasoningText);
+            if (rawText) message.rawContent = this.mergeChatboxStreamText(message.rawContent, rawText);
+            if (reasoningText) {
+                message.reasoningRaw = this.mergeChatboxStreamText(message.reasoningRaw, reasoningText);
+            }
 
             const parsed = this.splitChatboxThinking(message.rawContent);
-            message.reasoning = this.mergeChatboxText(message.reasoningRaw, parsed.reasoning);
+            message.reasoning = this.combineChatboxReasoning(message.reasoningRaw, parsed.reasoning);
             message.content = parsed.content;
         },
         createChatboxMessage(role, content = "", extras = {}) {
@@ -1073,14 +1097,28 @@ mixins.chatbox = {
                 }
 
                 if (mode === "sse") {
-                    const events = buffer.split(/\r?\n\r?\n/);
-                    buffer = events.pop() || "";
+                    if (/\r?\n\r?\n/.test(buffer)) {
+                        const events = buffer.split(/\r?\n\r?\n/);
+                        buffer = events.pop() || "";
 
-                    for (const event of events) {
-                        const result = this.processChatboxStreamEvent(event, assistantMessage, tracker);
-                        parsedAnything = parsedAnything || result.changed;
-                        if (result.done) {
-                            return { parsedAnything, done: true };
+                        for (const event of events) {
+                            const result = this.processChatboxStreamEvent(event, assistantMessage, tracker);
+                            parsedAnything = parsedAnything || result.changed;
+                            if (result.done) {
+                                return { parsedAnything, done: true };
+                            }
+                        }
+                    } else if (buffer.includes("\n")) {
+                        const lines = buffer.split(/\r?\n/);
+                        buffer = done ? "" : lines.pop() || "";
+
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            const result = this.processChatboxStreamEvent(line, assistantMessage, tracker);
+                            parsedAnything = parsedAnything || result.changed;
+                            if (result.done) {
+                                return { parsedAnything, done: true };
+                            }
                         }
                     }
                 } else if (mode === "jsonl") {
@@ -1120,7 +1158,7 @@ mixins.chatbox = {
         },
         applyChatboxFinalPayload(payload, assistantMessage, tracker) {
             const choice = payload?.choices?.[0];
-            const rawText = this.mergeChatboxText(
+            const rawText = this.pickChatboxText(
                 this.extractChatboxChunkContent(payload),
                 this.extractChatboxText(payload?.output?.[0]?.content),
                 this.extractChatboxText(payload?.response?.output_text)
