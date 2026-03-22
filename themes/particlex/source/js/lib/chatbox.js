@@ -31,6 +31,8 @@ mixins.chatbox = {
                 search: "",
                 conversations: [],
                 activeConversationId: "",
+                viewConversationId: "",
+                viewMessages: [],
                 models: [],
                 editingMessageId: "",
                 editingDraft: "",
@@ -103,9 +105,6 @@ mixins.chatbox = {
         chatboxActiveConversation() {
             return this.chatbox.conversations.find((conversation) => conversation.id === this.chatbox.activeConversationId) || null;
         },
-        chatboxDisplayMessages() {
-            return this.chatboxActiveConversation?.messages || [];
-        },
         chatboxFilteredConversations() {
             const keyword = (this.chatbox.search || "").trim().toLowerCase();
             if (!keyword) return this.chatbox.conversations;
@@ -148,6 +147,13 @@ mixins.chatbox = {
         },
     },
     methods: {
+        setChatboxState(patch) {
+            this.chatbox = {
+                ...this.chatbox,
+                ...(patch || {}),
+            };
+            return this.chatbox;
+        },
         resolveChatboxConversationId(conversationOrId) {
             if (!conversationOrId) return "";
             return typeof conversationOrId === "string" ? conversationOrId : conversationOrId.id || "";
@@ -289,14 +295,126 @@ mixins.chatbox = {
                 updatedAt: now,
                 messages: Array.isArray(initialMessages) ? initialMessages.slice() : [],
             };
-            this.chatbox.conversations.unshift(conversation);
-            this.chatbox.activeConversationId = conversation.id;
+            this.setChatboxState({
+                conversations: [conversation, ...this.chatbox.conversations],
+                activeConversationId: conversation.id,
+                search: "",
+            });
             this.cancelEditChatboxMessage();
-            this.refreshChatboxUi();
+            this.syncChatboxView();
             return conversation;
         },
         getChatboxConversationById(conversationId = this.chatbox.activeConversationId) {
             return this.chatbox.conversations.find((conversation) => conversation.id === conversationId) || null;
+        },
+        commitChatboxConversation(updatedConversation, promote = false) {
+            if (!updatedConversation?.id) return null;
+            const currentIndex = this.chatbox.conversations.findIndex((item) => item.id === updatedConversation.id);
+            if (currentIndex === -1) return null;
+
+            const normalized = {
+                ...updatedConversation,
+                messages: Array.isArray(updatedConversation.messages) ? updatedConversation.messages.slice() : [],
+            };
+            const rest = this.chatbox.conversations.filter((item) => item.id !== normalized.id);
+
+            let nextConversations;
+            if (promote) {
+                nextConversations = [normalized, ...rest];
+            } else {
+                const insertIndex = Math.min(currentIndex, rest.length);
+                nextConversations = [
+                    ...rest.slice(0, insertIndex),
+                    normalized,
+                    ...rest.slice(insertIndex),
+                ];
+            }
+
+            if (!this.chatbox.activeConversationId || this.chatbox.activeConversationId === normalized.id) {
+                this.setChatboxState({
+                    conversations: nextConversations,
+                    viewConversationId: normalized.id,
+                    viewMessages: normalized.messages.map((message) => this.cloneChatboxMessage(message)),
+                });
+            } else {
+                this.setChatboxState({
+                    conversations: nextConversations,
+                });
+            }
+
+            return normalized;
+        },
+        cloneChatboxMessage(message) {
+            if (!message || typeof message !== "object") return message;
+            return {
+                ...message,
+                metrics:
+                    message.metrics && typeof message.metrics === "object" ? { ...message.metrics } : message.metrics || null,
+            };
+        },
+        syncChatboxViewState() {
+            const active = this.getChatboxConversationById();
+            const nextConversationId = active?.id || "";
+            const nextMessages = Array.isArray(active?.messages)
+                ? active.messages.map((message) => this.cloneChatboxMessage(message))
+                : [];
+
+            this.setChatboxState({
+                viewConversationId: nextConversationId,
+                viewMessages: nextMessages,
+            });
+            return active;
+        },
+        syncChatboxView(scrollToBottom = false) {
+            this.syncChatboxViewState();
+            this.$nextTick(() => this.refreshChatboxUi(scrollToBottom));
+        },
+        patchChatboxConversation(conversation, updater, options = {}) {
+            const conversationId = this.resolveChatboxConversationId(conversation);
+            if (!conversationId) return null;
+            const current = this.getChatboxConversationById(conversationId);
+            if (!current) return null;
+
+            const draft = {
+                ...current,
+                messages: Array.isArray(current.messages) ? current.messages.map((message) => ({ ...message })) : [],
+            };
+            const next = typeof updater === "function" ? updater(draft) || draft : draft;
+            const updated = {
+                ...current,
+                ...next,
+                messages: Array.isArray(next.messages) ? next.messages.slice() : draft.messages.slice(),
+            };
+
+            if (options.touch) updated.updatedAt = Date.now();
+            if (options.titleSource && (!updated.title || updated.title === "New chat")) {
+                updated.title = this.truncateChatboxConversationTitle(options.titleSource);
+            }
+
+            return this.commitChatboxConversation(updated, Boolean(options.promote));
+        },
+        getChatboxMessageById(messageId, conversationId = this.chatbox.activeConversationId) {
+            const conversation = this.getChatboxConversationById(conversationId);
+            if (!conversation || !Array.isArray(conversation.messages)) return null;
+            return conversation.messages.find((message) => message.id === messageId) || null;
+        },
+        patchChatboxMessage(conversationId, messageId, updater, options = {}) {
+            return this.patchChatboxConversation(
+                conversationId,
+                (conversation) => {
+                    let updatedMessage = null;
+                    const messages = conversation.messages.map((message) => {
+                        if (message.id !== messageId) return message;
+                        updatedMessage = typeof updater === "function" ? updater({ ...message }) || { ...message } : { ...message };
+                        return updatedMessage;
+                    });
+                    return {
+                        ...conversation,
+                        messages,
+                    };
+                },
+                options
+            );
         },
         ensureChatboxConversation() {
             const conversation = this.getChatboxConversationById();
@@ -304,38 +422,25 @@ mixins.chatbox = {
             return this.createChatboxConversation();
         },
         touchChatboxConversation(conversation, titleSource = "") {
-            const conversationId = this.resolveChatboxConversationId(conversation);
-            if (!conversationId) return null;
-            const index = this.chatbox.conversations.findIndex((item) => item.id === conversationId);
-            if (index === -1) return null;
-
-            const current = this.chatbox.conversations[index];
-            const updated = {
-                ...current,
-                updatedAt: Date.now(),
-                title:
-                    titleSource && (!current.title || current.title === "New chat")
-                        ? this.truncateChatboxConversationTitle(titleSource)
-                        : current.title,
-            };
-
-            this.chatbox.conversations.splice(index, 1);
-            this.chatbox.conversations.unshift(updated);
-            return updated;
+            return this.patchChatboxConversation(conversation, null, {
+                touch: true,
+                promote: true,
+                titleSource,
+            });
         },
         replaceChatboxConversationMessages(conversation, messages) {
-            const conversationId = this.resolveChatboxConversationId(conversation);
-            if (!conversationId) return null;
-            const index = this.chatbox.conversations.findIndex((item) => item.id === conversationId);
-            if (index === -1) return null;
-            const normalized = Array.isArray(messages) ? messages.slice() : [];
-            const current = this.chatbox.conversations[index];
-            this.chatbox.conversations.splice(index, 1, {
-                ...current,
-                messages: normalized,
-            });
-            const updated = this.touchChatboxConversation(conversationId);
-            this.refreshChatboxUi();
+            const updated = this.patchChatboxConversation(
+                conversation,
+                (current) => ({
+                    ...current,
+                    messages: Array.isArray(messages) ? messages.slice() : [],
+                }),
+                {
+                    touch: true,
+                    promote: true,
+                }
+            );
+            this.syncChatboxView();
             return updated;
         },
         replaceChatboxMessages(messages) {
@@ -354,7 +459,7 @@ mixins.chatbox = {
                 }
                 const saved = JSON.parse(raw);
                 const conversations = Array.isArray(saved?.conversations) ? saved.conversations : [];
-                this.chatbox.conversations = conversations
+                const restoredConversations = conversations
                     .filter((conversation) => conversation && typeof conversation === "object")
                     .map((conversation) => ({
                         id: conversation.id || `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -364,6 +469,9 @@ mixins.chatbox = {
                         messages: Array.isArray(conversation.messages) ? conversation.messages.slice() : [],
                     }))
                     .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0));
+                this.setChatboxState({
+                    conversations: restoredConversations,
+                });
 
                 if (!this.chatbox.conversations.length) {
                     this.createChatboxConversation();
@@ -372,10 +480,15 @@ mixins.chatbox = {
 
                 const targetId = saved?.activeConversationId;
                 const active = this.chatbox.conversations.find((conversation) => conversation.id === targetId) || this.chatbox.conversations[0];
-                this.chatbox.activeConversationId = active.id;
+                this.setChatboxState({
+                    activeConversationId: active.id,
+                });
+                this.syncChatboxViewState();
             } catch (error) {
                 console.warn("Failed to restore chatbox conversations.", error);
-                this.chatbox.conversations = [];
+                this.setChatboxState({
+                    conversations: [],
+                });
                 this.createChatboxConversation();
             }
         },
@@ -397,11 +510,13 @@ mixins.chatbox = {
             if (this.chatbox.sending && this.chatbox.activeConversationId !== conversation.id) {
                 this.abortChatboxRequest();
             }
-            this.chatbox.activeConversationId = conversation.id;
+            this.setChatboxState({
+                activeConversationId: conversation.id,
+            });
             this.cancelEditChatboxMessage();
             this.chatbox.error = "";
             this.chatbox.status = "";
-            this.refreshChatboxUi(true);
+            this.syncChatboxView(true);
         },
         getChatboxConversationPreview(conversation) {
             if (!conversation) return "";
@@ -586,15 +701,46 @@ mixins.chatbox = {
                 this.extractChatboxText(json?.reasoning_text)
             );
         },
-        applyChatboxAssistantUpdate(message, rawText = "", reasoningText = "") {
-            if (rawText) message.rawContent = this.mergeChatboxStreamText(message.rawContent, rawText);
-            if (reasoningText) {
-                message.reasoningRaw = this.mergeChatboxStreamText(message.reasoningRaw, reasoningText);
+        applyChatboxAssistantUpdate(conversationId, messageId, rawText = "", reasoningText = "") {
+            const current = this.getChatboxMessageById(messageId, conversationId);
+            if (!current) {
+                return {
+                    rawContent: "",
+                    reasoningRaw: "",
+                    content: "",
+                    reasoning: "",
+                };
             }
 
-            const parsed = this.splitChatboxThinking(message.rawContent);
-            message.reasoning = this.combineChatboxReasoning(message.reasoningRaw, parsed.reasoning);
-            message.content = parsed.content;
+            const nextRaw = rawText ? this.mergeChatboxStreamText(current.rawContent, rawText) : current.rawContent || "";
+            const nextReasoningRaw = reasoningText
+                ? this.mergeChatboxStreamText(current.reasoningRaw, reasoningText)
+                : current.reasoningRaw || "";
+            const parsed = this.splitChatboxThinking(nextRaw);
+            const nextReasoning = this.combineChatboxReasoning(nextReasoningRaw, parsed.reasoning);
+
+            this.patchChatboxMessage(
+                conversationId,
+                messageId,
+                (message) => ({
+                    ...message,
+                    rawContent: nextRaw,
+                    reasoningRaw: nextReasoningRaw,
+                    content: parsed.content,
+                    reasoning: nextReasoning,
+                }),
+                {
+                    promote: false,
+                    touch: false,
+                }
+            );
+
+            return {
+                rawContent: nextRaw,
+                reasoningRaw: nextReasoningRaw,
+                content: parsed.content,
+                reasoning: nextReasoning,
+            };
         },
         createChatboxMessage(role, content = "", extras = {}) {
             return {
@@ -729,21 +875,25 @@ mixins.chatbox = {
             }
         },
         findChatboxMessageIndex(messageId) {
-            return this.chatboxDisplayMessages.findIndex((message) => message.id === messageId);
+            return this.chatbox.viewMessages.findIndex((message) => message.id === messageId);
         },
         startEditChatboxMessage(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return;
-            const message = this.chatboxDisplayMessages[index];
+            const message = this.chatbox.viewMessages[index];
             if (message.role !== "user") return;
-            this.chatbox.editingMessageId = messageId;
-            this.chatbox.editingDraft = message.content || message.rawContent || "";
+            this.setChatboxState({
+                editingMessageId: messageId,
+                editingDraft: message.content || message.rawContent || "",
+            });
         },
         cancelEditChatboxMessage() {
-            this.chatbox.editingMessageId = "";
-            this.chatbox.editingDraft = "";
+            this.setChatboxState({
+                editingMessageId: "",
+                editingDraft: "",
+            });
         },
-        saveEditedChatboxMessage(messageId) {
+        async saveEditedChatboxMessage(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return;
             const nextText = this.chatbox.editingDraft.trim();
@@ -752,46 +902,31 @@ mixins.chatbox = {
                 return;
             }
 
-            const message = this.chatboxDisplayMessages[index];
+            const message = this.chatbox.viewMessages[index];
             if (message.role !== "user") return;
 
-            message.content = nextText;
-            message.rawContent = nextText;
-            this.replaceChatboxMessages(this.chatboxDisplayMessages.slice(0, index + 1));
-            this.touchChatboxConversation(this.getChatboxConversationById(), nextText);
             this.cancelEditChatboxMessage();
-            this.chatbox.status = "User message updated. Continue from here or click Re-send.";
-            this.refreshChatboxUi();
+            this.chatbox.status = "User message updated.";
+            await this.rerunChatboxFromUserMessage(messageId, nextText);
         },
         getChatboxResendTargetId(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return "";
 
-            const current = this.chatboxDisplayMessages[index];
+            const current = this.chatbox.viewMessages[index];
             if (current.role === "user") return current.id;
 
             for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-                if (this.chatboxDisplayMessages[cursor].role === "user") return this.chatboxDisplayMessages[cursor].id;
+                if (this.chatbox.viewMessages[cursor].role === "user") return this.chatbox.viewMessages[cursor].id;
             }
 
             return "";
         },
         async resendChatboxFromMessage(messageId, overrideText) {
             const targetId = this.getChatboxResendTargetId(messageId);
-            const index = this.findChatboxMessageIndex(targetId);
-            if (index === -1) return;
-
-            const fallbackText =
-                this.chatboxDisplayMessages[index].content || this.chatboxDisplayMessages[index].rawContent || "";
-            const content = (typeof overrideText === "string" ? overrideText : fallbackText).trim();
-            if (!content) {
-                this.chatbox.error = "Cannot re-send an empty message.";
-                return;
-            }
-
-            this.replaceChatboxMessages(this.chatboxDisplayMessages.slice(0, index));
             this.cancelEditChatboxMessage();
-            await this.dispatchChatboxMessage(content);
+            this.chatbox.status = "Re-sending response.";
+            await this.rerunChatboxFromUserMessage(targetId, overrideText);
         },
         deleteChatboxConversation(conversationId) {
             const index = this.chatbox.conversations.findIndex((conversation) => conversation.id === conversationId);
@@ -800,25 +935,29 @@ mixins.chatbox = {
             const isActive = this.chatbox.activeConversationId === conversationId;
             if (isActive && this.chatbox.sending) this.abortChatboxRequest();
 
-            this.chatbox.conversations.splice(index, 1);
+            this.setChatboxState({
+                conversations: this.chatbox.conversations.filter((conversation) => conversation.id !== conversationId),
+            });
             this.cancelEditChatboxMessage();
             this.chatbox.error = "";
 
             if (!this.chatbox.conversations.length) {
                 this.createChatboxConversation();
                 this.chatbox.status = "Conversation deleted.";
-                this.refreshChatboxUi();
+                this.syncChatboxView();
                 return;
             }
 
             if (isActive) {
                 const nextConversation =
                     this.chatbox.conversations[Math.min(index, this.chatbox.conversations.length - 1)] || this.chatbox.conversations[0];
-                this.chatbox.activeConversationId = nextConversation.id;
+                this.setChatboxState({
+                    activeConversationId: nextConversation.id,
+                });
             }
 
             this.chatbox.status = "Conversation deleted.";
-            this.refreshChatboxUi(isActive);
+            this.syncChatboxView(isActive);
         },
         scrollChatboxToBottom() {
             this.$nextTick(() => {
@@ -857,7 +996,7 @@ mixins.chatbox = {
             }
             return this.normalizeChatboxText(message.content);
         },
-        buildChatboxMessages(userMessage, historyMessages = this.chatboxDisplayMessages) {
+        buildChatboxMessages(userMessage, historyMessages = this.getChatboxConversationById()?.messages || []) {
             const messages = [];
             const prompt = this.chatbox.settings.systemPrompt.trim();
             if (prompt) {
@@ -992,7 +1131,7 @@ mixins.chatbox = {
 
             return parsed;
         },
-        processChatboxStreamPayload(payload, assistantMessage, tracker) {
+        processChatboxStreamPayload(payload, conversationId, assistantMessageId, tracker) {
             const rawPayload = typeof payload === "string" ? payload : "";
             if (!rawPayload.trim()) {
                 return {
@@ -1001,13 +1140,17 @@ mixins.chatbox = {
                 };
             }
 
-            const beforeRaw = assistantMessage.rawContent || "";
-            const beforeReasoning = assistantMessage.reasoningRaw || "";
+            const beforeMessage = this.getChatboxMessageById(assistantMessageId, conversationId);
+            const beforeRaw = beforeMessage?.rawContent || "";
+            const beforeReasoning = beforeMessage?.reasoningRaw || "";
             const events = this.parseChatboxStreamPayloads(rawPayload);
             if (events.includes("[DONE]")) {
+                const afterMessage = this.getChatboxMessageById(assistantMessageId, conversationId);
                 return {
                     done: true,
-                    changed: beforeRaw !== (assistantMessage.rawContent || "") || beforeReasoning !== (assistantMessage.reasoningRaw || ""),
+                    changed:
+                        beforeRaw !== (afterMessage?.rawContent || "") ||
+                        beforeReasoning !== (afterMessage?.reasoningRaw || ""),
                 };
             }
             if (!events.length) {
@@ -1020,7 +1163,7 @@ mixins.chatbox = {
             for (const event of events) {
                 if (typeof event === "string") {
                     if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
-                    this.applyChatboxAssistantUpdate(assistantMessage, event, "");
+                    this.applyChatboxAssistantUpdate(conversationId, assistantMessageId, event, "");
                     continue;
                 }
 
@@ -1035,20 +1178,36 @@ mixins.chatbox = {
                 const reasoningText = this.extractChatboxChunkReasoning(json, !hasFinalMessageShape);
 
                 if ((rawText || reasoningText) && !tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
-                this.applyChatboxAssistantUpdate(assistantMessage, rawText, reasoningText);
+                this.applyChatboxAssistantUpdate(conversationId, assistantMessageId, rawText, reasoningText);
                 tracker.metrics = this.mergeChatboxMetrics(tracker.metrics, this.extractChatboxMetrics(json));
 
-                if (choice?.finish_reason) assistantMessage.finishReason = choice.finish_reason;
+                if (choice?.finish_reason) {
+                    this.patchChatboxMessage(
+                        conversationId,
+                        assistantMessageId,
+                        (message) => ({
+                            ...message,
+                            finishReason: choice.finish_reason,
+                        }),
+                        {
+                            promote: false,
+                            touch: false,
+                        }
+                    );
+                }
             }
 
-            const changed = beforeRaw !== (assistantMessage.rawContent || "") || beforeReasoning !== (assistantMessage.reasoningRaw || "");
+            const afterMessage = this.getChatboxMessageById(assistantMessageId, conversationId);
+            const changed =
+                beforeRaw !== (afterMessage?.rawContent || "") ||
+                beforeReasoning !== (afterMessage?.reasoningRaw || "");
             if (changed) this.refreshChatboxUi(true);
             return {
                 done: false,
                 changed,
             };
         },
-        processChatboxStreamEvent(block, assistantMessage, tracker) {
+        processChatboxStreamEvent(block, conversationId, assistantMessageId, tracker) {
             const rawBlock = typeof block === "string" ? block : "";
             const probe = rawBlock.trim();
             if (!probe) {
@@ -1063,7 +1222,7 @@ mixins.chatbox = {
                 .filter((line) => /^\s*data:/i.test(line))
                 .map((line) => line.replace(/^\s*data:\s?/i, ""));
             if (dataLines.length) {
-                return this.processChatboxStreamPayload(dataLines.join("\n"), assistantMessage, tracker);
+                return this.processChatboxStreamPayload(dataLines.join("\n"), conversationId, assistantMessageId, tracker);
             }
 
             if (/^(event:|id:|retry:)/im.test(probe) && !/\bdata:/im.test(rawBlock)) {
@@ -1073,9 +1232,9 @@ mixins.chatbox = {
                 };
             }
 
-            return this.processChatboxStreamPayload(rawBlock, assistantMessage, tracker);
+            return this.processChatboxStreamPayload(rawBlock, conversationId, assistantMessageId, tracker);
         },
-        async consumeChatboxStream(response, assistantMessage, tracker, contentType = "") {
+        async consumeChatboxStream(response, conversationId, assistantMessageId, tracker, contentType = "") {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
@@ -1102,7 +1261,7 @@ mixins.chatbox = {
                         buffer = events.pop() || "";
 
                         for (const event of events) {
-                            const result = this.processChatboxStreamEvent(event, assistantMessage, tracker);
+                            const result = this.processChatboxStreamEvent(event, conversationId, assistantMessageId, tracker);
                             parsedAnything = parsedAnything || result.changed;
                             if (result.done) {
                                 return { parsedAnything, done: true };
@@ -1114,7 +1273,7 @@ mixins.chatbox = {
 
                         for (const line of lines) {
                             if (!line.trim()) continue;
-                            const result = this.processChatboxStreamEvent(line, assistantMessage, tracker);
+                            const result = this.processChatboxStreamEvent(line, conversationId, assistantMessageId, tracker);
                             parsedAnything = parsedAnything || result.changed;
                             if (result.done) {
                                 return { parsedAnything, done: true };
@@ -1126,7 +1285,7 @@ mixins.chatbox = {
                     buffer = done ? "" : lines.pop() || "";
 
                     for (const line of lines) {
-                        const result = this.processChatboxStreamEvent(line, assistantMessage, tracker);
+                        const result = this.processChatboxStreamEvent(line, conversationId, assistantMessageId, tracker);
                         parsedAnything = parsedAnything || result.changed;
                         if (result.done) {
                             return { parsedAnything, done: true };
@@ -1134,7 +1293,7 @@ mixins.chatbox = {
                     }
                 } else if (mode === "text" && buffer) {
                     if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
-                    this.applyChatboxAssistantUpdate(assistantMessage, buffer, "");
+                    this.applyChatboxAssistantUpdate(conversationId, assistantMessageId, buffer, "");
                     this.refreshChatboxUi(true);
                     parsedAnything = true;
                     buffer = "";
@@ -1144,11 +1303,11 @@ mixins.chatbox = {
             }
 
             if (buffer.trim()) {
-                const result = this.processChatboxStreamEvent(buffer, assistantMessage, tracker);
+                const result = this.processChatboxStreamEvent(buffer, conversationId, assistantMessageId, tracker);
                 parsedAnything = parsedAnything || result.changed;
                 if (!result.changed && mode === "text") {
                     if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
-                    this.applyChatboxAssistantUpdate(assistantMessage, buffer, "");
+                    this.applyChatboxAssistantUpdate(conversationId, assistantMessageId, buffer, "");
                     this.refreshChatboxUi(true);
                     parsedAnything = true;
                 }
@@ -1156,7 +1315,7 @@ mixins.chatbox = {
 
             return { parsedAnything, done: false };
         },
-        applyChatboxFinalPayload(payload, assistantMessage, tracker) {
+        applyChatboxFinalPayload(payload, conversationId, assistantMessageId, tracker) {
             const choice = payload?.choices?.[0];
             const rawText = this.pickChatboxText(
                 this.extractChatboxChunkContent(payload),
@@ -1166,72 +1325,48 @@ mixins.chatbox = {
             const reasoningText = this.extractChatboxChunkReasoning(payload, false);
 
             if ((rawText || reasoningText) && !tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
-            this.applyChatboxAssistantUpdate(assistantMessage, rawText, reasoningText);
+            this.applyChatboxAssistantUpdate(conversationId, assistantMessageId, rawText, reasoningText);
             tracker.metrics = this.mergeChatboxMetrics(tracker.metrics, this.extractChatboxMetrics(payload));
 
-            if (choice?.finish_reason) assistantMessage.finishReason = choice.finish_reason;
+            if (choice?.finish_reason) {
+                this.patchChatboxMessage(
+                    conversationId,
+                    assistantMessageId,
+                    (message) => ({
+                        ...message,
+                        finishReason: choice.finish_reason,
+                    }),
+                    {
+                        promote: false,
+                        touch: false,
+                    }
+                );
+            }
         },
-        failChatboxAssistantMessage(assistantMessage, messageText, finishReason = "client_error") {
-            assistantMessage.pending = false;
-            assistantMessage.finishReason = finishReason;
-            assistantMessage.content = messageText;
-            assistantMessage.rawContent = messageText;
-            assistantMessage.reasoning = "";
-            assistantMessage.reasoningRaw = "";
+        failChatboxAssistantMessage(conversationId, assistantMessageId, messageText, finishReason = "client_error") {
+            this.patchChatboxMessage(
+                conversationId,
+                assistantMessageId,
+                (message) => ({
+                    ...message,
+                    pending: false,
+                    finishReason,
+                    content: messageText,
+                    rawContent: messageText,
+                    reasoning: "",
+                    reasoningRaw: "",
+                }),
+                {
+                    promote: false,
+                    touch: false,
+                }
+            );
             this.refreshChatboxUi();
         },
-        async dispatchChatboxMessage(content) {
-            if (!content || this.chatbox.sending) return;
-
-            this.chatbox.error = "";
-            this.chatbox.status = "";
-            const conversation = this.ensureChatboxConversation();
-            const conversationId = conversation.id;
-            const userMessage = this.createChatboxMessage("user", content);
-            const assistantMessage = this.createChatboxMessage("assistant", "", {
-                rawContent: "",
-                reasoningRaw: "",
-                pending: true,
-            });
-
-            const baseMessages = this.getChatboxConversationById(conversationId)?.messages || [];
-            this.replaceChatboxConversationMessages(conversationId, [...baseMessages, userMessage, assistantMessage]);
-            this.touchChatboxConversation(conversationId, content);
-            this.chatbox.sending = true;
-            await this.$nextTick();
-            this.refreshChatboxUi(true);
-
-            if (!this.chatboxChatEndpoint) {
-                this.failChatboxAssistantMessage(assistantMessage, "Set the API root before sending a message.");
-                this.chatbox.sending = false;
-                return;
-            }
-            if (!this.chatbox.settings.model.trim()) {
-                this.failChatboxAssistantMessage(assistantMessage, "Select or enter a model before sending a message.");
-                this.chatbox.sending = false;
-                return;
-            }
-
-            let extraBody;
-            try {
-                extraBody = this.parseChatboxExtraBody();
-            } catch (error) {
-                this.failChatboxAssistantMessage(assistantMessage, error.message || "Extra body JSON is invalid.");
-                this.chatbox.sending = false;
-                return;
-            }
-
-            const requestMessages = this.buildChatboxMessages(
-                content,
-                (this.getChatboxConversationById(conversationId)?.messages || []).slice(
-                    0,
-                    Math.max(0, (this.getChatboxConversationById(conversationId)?.messages || []).length - 2)
-                )
-            );
-
+        buildChatboxRequestBody(content, historyMessages, extraBody) {
             const requestBody = {
                 model: this.chatbox.settings.model.trim(),
-                messages: requestMessages,
+                messages: this.buildChatboxMessages(content, historyMessages),
                 stream: Boolean(this.chatbox.settings.stream),
             };
 
@@ -1261,6 +1396,52 @@ mixins.chatbox = {
             if (this.chatbox.settings.thinkMode === "off") requestBody.think = false;
 
             Object.assign(requestBody, extraBody);
+            return requestBody;
+        },
+        async requestChatboxAssistantResponse(conversationId, assistantMessageId, content, historyMessages) {
+            if (!content || this.chatbox.sending) return;
+
+            this.setChatboxState({
+                sending: true,
+            });
+            await this.$nextTick();
+            this.refreshChatboxUi(true);
+
+            if (!this.chatboxChatEndpoint) {
+                this.failChatboxAssistantMessage(conversationId, assistantMessageId, "Set the API root before sending a message.");
+                this.setChatboxState({
+                    sending: false,
+                });
+                return;
+            }
+            if (!this.chatbox.settings.model.trim()) {
+                this.failChatboxAssistantMessage(
+                    conversationId,
+                    assistantMessageId,
+                    "Select or enter a model before sending a message."
+                );
+                this.setChatboxState({
+                    sending: false,
+                });
+                return;
+            }
+
+            let extraBody;
+            try {
+                extraBody = this.parseChatboxExtraBody();
+            } catch (error) {
+                this.failChatboxAssistantMessage(
+                    conversationId,
+                    assistantMessageId,
+                    error.message || "Extra body JSON is invalid."
+                );
+                this.setChatboxState({
+                    sending: false,
+                });
+                return;
+            }
+
+            const requestBody = this.buildChatboxRequestBody(content, historyMessages, extraBody);
 
             const controller = new AbortController();
             this.chatboxAbortController = controller;
@@ -1285,19 +1466,35 @@ mixins.chatbox = {
 
                 const contentType = (response.headers.get("content-type") || "").toLowerCase();
                 if (requestBody.stream && response.body) {
-                    await this.consumeChatboxStream(response, assistantMessage, tracker, contentType);
+                    await this.consumeChatboxStream(response, conversationId, assistantMessageId, tracker, contentType);
                 } else {
                     const payload = await response.json();
-                    this.applyChatboxFinalPayload(payload, assistantMessage, tracker);
+                    this.applyChatboxFinalPayload(payload, conversationId, assistantMessageId, tracker);
                 }
 
                 tracker.finishedAt = performance.now();
-                assistantMessage.pending = false;
-                assistantMessage.metrics = this.finalizeChatboxMetrics(tracker);
-
-                if (!assistantMessage.content && !assistantMessage.reasoning) {
-                    assistantMessage.content = "The endpoint returned successfully, but no text content was found.";
-                }
+                const finalMetrics = this.finalizeChatboxMetrics(tracker);
+                this.patchChatboxMessage(
+                    conversationId,
+                    assistantMessageId,
+                    (message) => ({
+                        ...message,
+                        pending: false,
+                        metrics: finalMetrics,
+                        content:
+                            !message.content && !message.reasoning
+                                ? "The endpoint returned successfully, but no text content was found."
+                                : message.content,
+                        rawContent:
+                            !message.content && !message.reasoning && !message.rawContent
+                                ? "The endpoint returned successfully, but no text content was found."
+                                : message.rawContent,
+                    }),
+                    {
+                        promote: false,
+                        touch: false,
+                    }
+                );
 
                 if (this.chatbox.activeConversationId === conversationId) {
                     this.chatbox.status = "Response completed.";
@@ -1305,16 +1502,32 @@ mixins.chatbox = {
                 this.refreshChatboxUi();
             } catch (error) {
                 const aborted = error && error.name === "AbortError";
-                assistantMessage.pending = false;
-                if (!assistantMessage.content && !assistantMessage.reasoning && !aborted) {
-                    assistantMessage.content = "No displayable text was parsed from the streaming response.";
-                    assistantMessage.rawContent = assistantMessage.content;
-                }
-                if (!assistantMessage.content && !assistantMessage.reasoning && aborted) {
+                const currentAssistant = this.getChatboxMessageById(assistantMessageId, conversationId);
+                this.patchChatboxMessage(
+                    conversationId,
+                    assistantMessageId,
+                    (message) => ({
+                        ...message,
+                        pending: false,
+                        content:
+                            !message.content && !message.reasoning && !aborted
+                                ? "No displayable text was parsed from the streaming response."
+                                : message.content,
+                        rawContent:
+                            !message.content && !message.reasoning && !aborted
+                                ? "No displayable text was parsed from the streaming response."
+                                : message.rawContent,
+                    }),
+                    {
+                        promote: false,
+                        touch: false,
+                    }
+                );
+                if (!currentAssistant?.content && !currentAssistant?.reasoning && aborted) {
                     const currentMessages = this.getChatboxConversationById(conversationId)?.messages || [];
                     this.replaceChatboxConversationMessages(
                         conversationId,
-                        currentMessages.filter((message) => message.id !== assistantMessage.id)
+                        currentMessages.filter((message) => message.id !== assistantMessageId)
                     );
                 }
                 if (this.chatbox.activeConversationId === conversationId) {
@@ -1323,16 +1536,74 @@ mixins.chatbox = {
                 }
                 this.refreshChatboxUi();
             } finally {
-                this.chatbox.sending = false;
+                this.setChatboxState({
+                    sending: false,
+                });
                 this.chatboxAbortController = null;
                 this.touchChatboxConversation(conversationId);
                 this.refreshChatboxUi(true);
             }
         },
+        async rerunChatboxFromUserMessage(messageId, overrideText) {
+            const conversation = this.ensureChatboxConversation();
+            const conversationId = conversation.id;
+            const currentMessages = this.getChatboxConversationById(conversationId)?.messages || [];
+            const index = currentMessages.findIndex((message) => message.id === messageId);
+            if (index === -1) return;
+
+            const currentUserMessage = currentMessages[index];
+            if (currentUserMessage.role !== "user") return;
+
+            const content = (typeof overrideText === "string" ? overrideText : currentUserMessage.content || currentUserMessage.rawContent || "").trim();
+            if (!content) {
+                this.chatbox.error = "Cannot send an empty message.";
+                return;
+            }
+
+            const updatedUserMessage = {
+                ...currentUserMessage,
+                content,
+                rawContent: content,
+            };
+            const assistantMessage = this.createChatboxMessage("assistant", "", {
+                rawContent: "",
+                reasoningRaw: "",
+                pending: true,
+            });
+            const historyMessages = currentMessages.slice(0, index);
+
+            this.chatbox.error = "";
+            this.chatbox.status = "";
+            this.replaceChatboxConversationMessages(conversationId, [...historyMessages, updatedUserMessage, assistantMessage]);
+            this.touchChatboxConversation(conversationId, content);
+            await this.requestChatboxAssistantResponse(conversationId, assistantMessage.id, content, historyMessages);
+        },
+        async dispatchChatboxMessage(content) {
+            if (!content || this.chatbox.sending) return;
+
+            this.chatbox.error = "";
+            this.chatbox.status = "";
+            const conversation = this.ensureChatboxConversation();
+            const conversationId = conversation.id;
+            const currentMessages = this.getChatboxConversationById(conversationId)?.messages || [];
+            const historyMessages = currentMessages.slice();
+            const userMessage = this.createChatboxMessage("user", content);
+            const assistantMessage = this.createChatboxMessage("assistant", "", {
+                rawContent: "",
+                reasoningRaw: "",
+                pending: true,
+            });
+
+            this.replaceChatboxConversationMessages(conversationId, [...historyMessages, userMessage, assistantMessage]);
+            this.touchChatboxConversation(conversationId, content);
+            await this.requestChatboxAssistantResponse(conversationId, assistantMessage.id, content, historyMessages);
+        },
         async sendChatboxMessage() {
             const content = this.chatbox.draft.trim();
             if (!content || this.chatbox.sending) return;
-            this.chatbox.draft = "";
+            this.setChatboxState({
+                draft: "",
+            });
             await this.$nextTick();
             await this.dispatchChatboxMessage(content);
         },

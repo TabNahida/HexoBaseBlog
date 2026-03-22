@@ -118,8 +118,8 @@
             </div>
 
             <div class="tool-chat-log chatbox-log" ref="chatboxLog">
-                <div class="chatbox-thread" :key="chatbox.activeConversationId">
-                    <div v-if="!chatboxDisplayMessages.length" class="tool-empty-state chatbox-empty">
+                <div class="chatbox-thread" :key="chatbox.viewConversationId || chatbox.activeConversationId">
+                    <div v-if="!chatbox.viewMessages.length" class="tool-empty-state chatbox-empty">
                         <i class="fa-solid fa-wave-square"></i>
                         <h3>Pick an endpoint, then start</h3>
                         <ol class="chatbox-empty-steps">
@@ -130,7 +130,7 @@
                     </div>
 
                     <article
-                        v-for="message in chatboxDisplayMessages"
+                        v-for="message in chatbox.viewMessages"
                         :key="message.id"
                         class="tool-chat-message"
                         :class="['role-' + message.role, { 'is-editing': chatbox.editingMessageId === message.id }]"
@@ -146,25 +146,21 @@
                                     <textarea
                                         class="tool-textarea chatbox-edit-textarea"
                                         v-model="chatbox.editingDraft"
-                                        placeholder="Edit this message, then save or re-send."
+                                        placeholder="Edit this message, then save to send again from here."
                                     ></textarea>
                                     <div class="chatbox-message-actions">
                                         <button type="button" class="tool-ghost-button" @click="cancelEditChatboxMessage">
                                             <i class="fa-solid fa-xmark fa-fw"></i>
                                             Cancel
                                         </button>
-                                        <button type="button" class="tool-ghost-button" @click="saveEditedChatboxMessage(message.id)">
-                                            <i class="fa-solid fa-check fa-fw"></i>
-                                            Save
-                                        </button>
                                         <button
                                             type="button"
-                                            class="tool-primary-button"
+                                            class="tool-ghost-button"
                                             :disabled="chatbox.sending || !chatbox.editingDraft.trim()"
-                                            @click="resendChatboxFromMessage(message.id, chatbox.editingDraft)"
+                                            @click="saveEditedChatboxMessage(message.id)"
                                         >
-                                            <i class="fa-solid fa-rotate-right fa-fw"></i>
-                                            Save & Re-send
+                                            <i class="fa-solid fa-check fa-fw"></i>
+                                            Save & Send
                                         </button>
                                     </div>
                                 </div>
@@ -196,7 +192,7 @@
                                 <i class="fa-solid fa-pen fa-fw"></i>
                             </button>
                             <button
-                                v-if="getChatboxResendTargetId(message.id)"
+                                v-if="message.role === 'assistant' && getChatboxResendTargetId(message.id)"
                                 type="button"
                                 class="tool-icon-button chatbox-message-icon"
                                 :disabled="chatbox.sending"

@@ -1,3 +1,7 @@
+<%
+    const toolsConfig = theme.tools || {};
+    const toolItems = Object.values((toolsConfig && toolsConfig.items) || {}).filter((tool) => tool && tool.enable !== false);
+%>
 <div class="tool-page">
     <section class="tool-hero">
         <div class="tool-hero-copy">
@@ -19,21 +23,26 @@
 
     <section class="tool-grid">
         <aside class="tool-catalog">
-            <a class="tool-panel tool-card tool-link-card" href="<%- url_for("/tools/chatbox") %>">
+            <% if (toolsConfig.enable !== false && toolItems.length) { %>
+            <% toolItems.forEach((tool) => { %>
+            <a class="tool-panel tool-card tool-link-card" href="<%- url_for(tool.path || "/tools") %>">
                 <div class="tool-card-header">
                     <span class="tool-card-icon">
-                        <i class="fa-solid fa-comments"></i>
+                        <i class="fa-<%- (tool.icon && tool.icon.theme) || "solid" %> fa-<%- (tool.icon && tool.icon.name) || "toolbox" %>"></i>
                     </span>
-                    <span class="tool-card-tag">Ready</span>
+                    <span class="tool-card-tag"><%= tool.status || "Ready" %></span>
                 </div>
                 <div class="tool-card-body">
-                    <h2>chatbox</h2>
-                    <p>
-                        OpenAI-compatible chat workspace with endpoint-first setup, model discovery, reasoning
-                        controls and speed metrics.
-                    </p>
+                    <h2><%= tool.title || "Tool" %></h2>
+                    <p><%= tool.description || "" %></p>
                 </div>
             </a>
+            <% }); %>
+            <% } else { %>
+            <div class="tool-panel tool-catalog-note">
+                <p>No tools are enabled in <code>themes/particlex/_config.yml</code>.</p>
+            </div>
+            <% } %>
             <div class="tool-panel tool-catalog-note">
                 <p>
                     More tools can be added as sibling pages under <code>/tools/...</code> without turning this

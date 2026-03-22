@@ -50,6 +50,22 @@ menu:
         theme: solid
         link: /tags
 
+# Tools directory
+tools:
+    enable: true
+    items:
+        chatbox:
+            enable: true
+            title: chatbox
+            status: Ready
+            path: /tools/chatbox
+            icon:
+                name: comments
+                theme: solid
+            description: |
+                OpenAI-compatible chat workspace with endpoint-first setup, model discovery, reasoning controls
+                and speed metrics.
+
 # Side info card
 card:
     enable: true
