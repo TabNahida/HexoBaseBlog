@@ -34,6 +34,7 @@ mixins.chatbox = {
                 viewConversationId: "",
                 viewMessages: [],
                 threadKey: 0,
+                sessionListKey: 0,
                 models: [],
                 editingMessageId: "",
                 editingDraft: "",
@@ -108,7 +109,7 @@ mixins.chatbox = {
         },
         chatboxFilteredConversations() {
             const keyword = (this.chatbox.search || "").trim().toLowerCase();
-            if (!keyword) return this.chatbox.conversations;
+            if (!keyword) return this.chatbox.conversations.slice();
             return this.chatbox.conversations.filter((conversation) => {
                 const haystack = [
                     conversation.title,
@@ -300,6 +301,7 @@ mixins.chatbox = {
                 conversations: [conversation, ...this.chatbox.conversations],
                 activeConversationId: conversation.id,
                 search: "",
+                sessionListKey: (this.chatbox.sessionListKey || 0) + 1,
             });
             this.activateChatboxConversation(conversation.id, {
                 scrollThread: "top",
@@ -315,6 +317,7 @@ mixins.chatbox = {
                 viewMessages: [],
                 search: "",
                 threadKey: (this.chatbox.threadKey || 0) + 1,
+                sessionListKey: (this.chatbox.sessionListKey || 0) + 1,
             });
             this.chatbox.error = "";
             this.chatbox.status = status;
@@ -359,10 +362,12 @@ mixins.chatbox = {
                     conversations: nextConversations,
                     viewConversationId: normalized.id,
                     viewMessages: normalized.messages.map((message) => this.cloneChatboxMessage(message)),
+                    sessionListKey: (this.chatbox.sessionListKey || 0) + 1,
                 });
             } else {
                 this.setChatboxState({
                     conversations: nextConversations,
+                    sessionListKey: (this.chatbox.sessionListKey || 0) + 1,
                 });
             }
 
@@ -550,6 +555,7 @@ mixins.chatbox = {
                     .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0));
                 this.setChatboxState({
                     conversations: restoredConversations,
+                    sessionListKey: (this.chatbox.sessionListKey || 0) + 1,
                 });
 
                 if (!this.chatbox.conversations.length) {
@@ -1675,6 +1681,8 @@ mixins.chatbox = {
 
             if (!conversation) {
                 conversation = this.createChatboxConversation([userMessage, assistantMessage]);
+                await this.$nextTick();
+                this.refreshChatboxUi(true);
             } else {
                 const currentMessages = this.getChatboxConversationById(conversation.id)?.messages || [];
                 historyMessages = currentMessages.slice();

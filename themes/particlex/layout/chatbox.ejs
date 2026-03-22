@@ -48,7 +48,7 @@
                 />
             </label>
 
-            <div class="chatbox-session-list" ref="chatboxSessionList">
+            <div class="chatbox-session-list" ref="chatboxSessionList" :key="chatbox.sessionListKey">
                 <div
                     v-for="conversation in chatboxFilteredConversations"
                     :key="conversation.id"
