@@ -138,9 +138,11 @@
                                     ></textarea>
                                     <div class="chatbox-message-actions">
                                         <button type="button" class="tool-ghost-button" @click="cancelEditChatboxMessage">
+                                            <i class="fa-solid fa-xmark fa-fw"></i>
                                             Cancel
                                         </button>
                                         <button type="button" class="tool-ghost-button" @click="saveEditedChatboxMessage(message.id)">
+                                            <i class="fa-solid fa-check fa-fw"></i>
                                             Save
                                         </button>
                                         <button
@@ -149,6 +151,7 @@
                                             :disabled="chatbox.sending || !chatbox.editingDraft.trim()"
                                             @click="resendChatboxFromMessage(message.id, chatbox.editingDraft)"
                                         >
+                                            <i class="fa-solid fa-rotate-right fa-fw"></i>
                                             Save & Re-send
                                         </button>
                                     </div>
@@ -173,19 +176,23 @@
                             <button
                                 v-if="message.role === 'user' && chatbox.editingMessageId !== message.id"
                                 type="button"
-                                class="tool-ghost-button"
+                                class="tool-icon-button chatbox-message-icon"
+                                title="Edit message"
+                                aria-label="Edit message"
                                 @click="startEditChatboxMessage(message.id)"
                             >
-                                Edit
+                                <i class="fa-solid fa-pen fa-fw"></i>
                             </button>
                             <button
                                 v-if="getChatboxResendTargetId(message.id)"
                                 type="button"
-                                class="tool-ghost-button"
+                                class="tool-icon-button chatbox-message-icon"
                                 :disabled="chatbox.sending"
+                                title="Re-send from here"
+                                aria-label="Re-send from here"
                                 @click="resendChatboxFromMessage(message.id)"
                             >
-                                Re-send
+                                <i class="fa-solid fa-rotate-right fa-fw"></i>
                             </button>
                         </div>
 
@@ -193,30 +200,41 @@
                             v-if="chatbox.settings.showSpeedMetrics && hasChatboxMetrics(message)"
                             class="chatbox-metrics"
                         >
-                            <span class="chatbox-metric" v-if="message.metrics.promptTokens">
-                                Prompt
-                                <strong v-text="formatChatboxInteger(message.metrics.promptTokens)"></strong>
-                            </span>
-                            <span class="chatbox-metric" v-if="message.metrics.completionTokens">
-                                Output
-                                <strong v-text="formatChatboxInteger(message.metrics.completionTokens)"></strong>
-                            </span>
-                            <span class="chatbox-metric" v-if="message.metrics.prefillSpeed">
-                                Prefill
-                                <strong v-text="formatChatboxRate(message.metrics.prefillSpeed)"></strong>
-                            </span>
-                            <span class="chatbox-metric" v-if="message.metrics.decodeSpeed">
-                                Decode
-                                <strong v-text="formatChatboxRate(message.metrics.decodeSpeed)"></strong>
-                            </span>
-                            <span class="chatbox-metric" v-if="message.metrics.ttftMs">
-                                TTFT
-                                <strong v-text="formatChatboxDuration(message.metrics.ttftMs)"></strong>
-                            </span>
-                            <span class="chatbox-metric" v-if="message.metrics.totalDurationMs">
-                                Total
-                                <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
-                            </span>
+                            <div class="chatbox-metrics-track">
+                                <span class="chatbox-metric" v-if="message.metrics.promptTokens">
+                                    Prompt
+                                    <strong v-text="formatChatboxInteger(message.metrics.promptTokens)"></strong>
+                                </span>
+                                <span class="chatbox-metric" v-if="message.metrics.completionTokens">
+                                    Output
+                                    <strong v-text="formatChatboxInteger(message.metrics.completionTokens)"></strong>
+                                </span>
+                                <span class="chatbox-metric" v-if="message.metrics.prefillSpeed">
+                                    Prefill
+                                    <strong v-text="formatChatboxRate(message.metrics.prefillSpeed)"></strong>
+                                </span>
+                                <span class="chatbox-metric" v-if="message.metrics.decodeSpeed">
+                                    Decode
+                                    <strong v-text="formatChatboxRate(message.metrics.decodeSpeed)"></strong>
+                                </span>
+                                <span class="chatbox-metric" v-if="message.metrics.ttftMs">
+                                    TTFT
+                                    <strong v-text="formatChatboxDuration(message.metrics.ttftMs)"></strong>
+                                </span>
+                                <span class="chatbox-metric" v-if="message.metrics.totalDurationMs">
+                                    Total
+                                    <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                class="tool-icon-button chatbox-metrics-close"
+                                title="Hide metrics"
+                                aria-label="Hide metrics"
+                                @click="dismissChatboxMetrics(message.id)"
+                            >
+                                <i class="fa-solid fa-xmark fa-fw"></i>
+                            </button>
                         </div>
                     </article>
                 </div>
@@ -377,17 +395,46 @@
                 </div>
 
                 <div class="chatbox-controls-body">
-                    <details class="tool-panel chatbox-card chatbox-foldout" open>
-                        <summary class="chatbox-foldout-summary">
-                            <div>
+                    <div class="chatbox-controls-shell">
+                    <aside class="chatbox-controls-nav">
+                        <p class="chatbox-controls-nav-label">Sections</p>
+                        <button
+                            type="button"
+                            class="chatbox-controls-tab"
+                            :class="{ active: chatbox.activeControlsSection === 'reasoning' }"
+                            @click="chatbox.activeControlsSection = 'reasoning'"
+                        >
+                            <i class="fa-solid fa-brain fa-fw"></i>
+                            <span>Reasoning</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="chatbox-controls-tab"
+                            :class="{ active: chatbox.activeControlsSection === 'sampling' }"
+                            @click="chatbox.activeControlsSection = 'sampling'"
+                        >
+                            <i class="fa-solid fa-sliders fa-fw"></i>
+                            <span>Sampling</span>
+                        </button>
+                        <button
+                            type="button"
+                            class="chatbox-controls-tab"
+                            :class="{ active: chatbox.activeControlsSection === 'advanced' }"
+                            @click="chatbox.activeControlsSection = 'advanced'"
+                        >
+                            <i class="fa-solid fa-code fa-fw"></i>
+                            <span>Advanced</span>
+                        </button>
+                    </aside>
+
+                    <div class="chatbox-controls-content">
+                        <section v-if="chatbox.activeControlsSection === 'reasoning'" class="chatbox-controls-pane">
+                            <div class="chatbox-controls-pane-header">
                                 <p class="tool-panel-kicker">Reasoning</p>
                                 <h2>Think & Display</h2>
+                                <p>Reasoning visibility, think mode and streaming behavior.</p>
                             </div>
-                            <span class="chatbox-foldout-indicator">
-                                <i class="fa-solid fa-chevron-down fa-fw"></i>
-                            </span>
-                        </summary>
-                        <div class="chatbox-foldout-body">
+
                             <label class="tool-field">
                                 <span>System Prompt</span>
                                 <textarea
@@ -424,20 +471,15 @@
                                     <span>Show prefill and decode speeds when timing or usage data is available.</span>
                                 </label>
                             </div>
-                        </div>
-                    </details>
+                        </section>
 
-                    <details class="tool-panel chatbox-card chatbox-foldout">
-                        <summary class="chatbox-foldout-summary">
-                            <div>
+                        <section v-if="chatbox.activeControlsSection === 'sampling'" class="chatbox-controls-pane">
+                            <div class="chatbox-controls-pane-header">
                                 <p class="tool-panel-kicker">Sampling</p>
                                 <h2>Generation Controls</h2>
+                                <p>Temperature, limits and sampling knobs for the current model.</p>
                             </div>
-                            <span class="chatbox-foldout-indicator">
-                                <i class="fa-solid fa-chevron-down fa-fw"></i>
-                            </span>
-                        </summary>
-                        <div class="chatbox-foldout-body">
+
                             <div class="tool-inline-fields">
                                 <label class="tool-field">
                                     <span>Temperature</span>
@@ -495,20 +537,15 @@
                                     placeholder="Comma or newline separated"
                                 />
                             </label>
-                        </div>
-                    </details>
+                        </section>
 
-                    <details class="tool-panel chatbox-card chatbox-foldout">
-                        <summary class="chatbox-foldout-summary">
-                            <div>
+                        <section v-if="chatbox.activeControlsSection === 'advanced'" class="chatbox-controls-pane">
+                            <div class="chatbox-controls-pane-header">
                                 <p class="tool-panel-kicker">Advanced</p>
                                 <h2>Extra Request Body</h2>
+                                <p>Pass vendor-specific fields without changing the core request builder.</p>
                             </div>
-                            <span class="chatbox-foldout-indicator">
-                                <i class="fa-solid fa-chevron-down fa-fw"></i>
-                            </span>
-                        </summary>
-                        <div class="chatbox-foldout-body">
+
                             <label class="tool-field">
                                 <span>Extra Body JSON</span>
                                 <textarea
@@ -522,8 +559,9 @@
                                 This JSON is merged into the final request body after the built-in controls, so you can pass
                                 extra vendor-specific fields without editing the code again.
                             </p>
-                        </div>
-                    </details>
+                        </section>
+                    </div>
+                    </div>
                 </div>
             </section>
         </div>

@@ -36,6 +36,7 @@ mixins.chatbox = {
                 editingMessageId: "",
                 editingDraft: "",
                 showControlsPanel: false,
+                activeControlsSection: "reasoning",
                 sending: false,
                 fetchingModels: false,
                 error: "",
@@ -230,6 +231,7 @@ mixins.chatbox = {
             this.chatbox.connectionState = "idle";
             this.chatbox.showKey = false;
             this.chatbox.showControlsPanel = false;
+            this.chatbox.activeControlsSection = "reasoning";
             this.chatbox.error = "";
             this.chatbox.status = "Saved settings cleared.";
             if (typeof window !== "undefined" && window.localStorage) {
@@ -252,12 +254,13 @@ mixins.chatbox = {
                 title: "New chat",
                 createdAt: now,
                 updatedAt: now,
-                messages: initialMessages,
+                messages: Array.isArray(initialMessages) ? initialMessages.slice() : [],
             };
             this.chatbox.conversations.unshift(conversation);
             this.chatbox.activeConversationId = conversation.id;
-            this.chatbox.messages = conversation.messages;
+            this.chatbox.messages = conversation.messages.slice();
             this.cancelEditChatboxMessage();
+            this.refreshChatboxUi();
             return conversation;
         },
         getChatboxConversationById(conversationId = this.chatbox.activeConversationId) {
@@ -267,7 +270,7 @@ mixins.chatbox = {
             let conversation = this.getChatboxConversationById();
             if (conversation) {
                 if (this.chatbox.messages !== conversation.messages) {
-                    this.chatbox.messages = conversation.messages;
+                    this.chatbox.messages = conversation.messages.slice();
                 }
                 return conversation;
             }
@@ -287,12 +290,13 @@ mixins.chatbox = {
         },
         replaceChatboxConversationMessages(conversation, messages) {
             if (!conversation) return;
-            const normalized = Array.isArray(messages) ? messages : [];
+            const normalized = Array.isArray(messages) ? messages.slice() : [];
             conversation.messages = normalized;
             if (this.chatbox.activeConversationId === conversation.id) {
-                this.chatbox.messages = conversation.messages;
+                this.chatbox.messages = conversation.messages.slice();
             }
             this.touchChatboxConversation(conversation);
+            this.refreshChatboxUi();
         },
         replaceChatboxMessages(messages) {
             this.replaceChatboxConversationMessages(this.ensureChatboxConversation(), messages);
@@ -317,7 +321,7 @@ mixins.chatbox = {
                         title: conversation.title || "New chat",
                         createdAt: conversation.createdAt || Date.now(),
                         updatedAt: conversation.updatedAt || conversation.createdAt || Date.now(),
-                        messages: Array.isArray(conversation.messages) ? conversation.messages : [],
+                        messages: Array.isArray(conversation.messages) ? conversation.messages.slice() : [],
                     }))
                     .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0));
 
@@ -329,7 +333,7 @@ mixins.chatbox = {
                 const targetId = saved?.activeConversationId;
                 const active = this.chatbox.conversations.find((conversation) => conversation.id === targetId) || this.chatbox.conversations[0];
                 this.chatbox.activeConversationId = active.id;
-                this.chatbox.messages = active.messages;
+                this.chatbox.messages = active.messages.slice();
             } catch (error) {
                 console.warn("Failed to restore chatbox conversations.", error);
                 this.chatbox.conversations = [];
@@ -355,12 +359,11 @@ mixins.chatbox = {
                 this.abortChatboxRequest();
             }
             this.chatbox.activeConversationId = conversation.id;
-            this.chatbox.messages = conversation.messages;
+            this.chatbox.messages = conversation.messages.slice();
             this.cancelEditChatboxMessage();
             this.chatbox.error = "";
             this.chatbox.status = "";
-            this.refreshChatboxRichContent();
-            this.scrollChatboxToBottom();
+            this.refreshChatboxUi(true);
         },
         getChatboxConversationPreview(conversation) {
             if (!conversation) return "";
@@ -421,6 +424,11 @@ mixins.chatbox = {
                     }
                 });
             });
+        },
+        refreshChatboxUi(scrollToBottom = false) {
+            if (typeof this.$forceUpdate === "function") this.$forceUpdate();
+            this.refreshChatboxRichContent();
+            if (scrollToBottom) this.scrollChatboxToBottom();
         },
         splitChatboxThinking(text) {
             const input = typeof text === "string" ? text : "";
@@ -558,6 +566,7 @@ mixins.chatbox = {
                 reasoningRaw: "",
                 pending: false,
                 metrics: null,
+                metricsDismissed: false,
                 finishReason: "",
                 createdAt: Date.now(),
                 ...extras,
@@ -713,7 +722,7 @@ mixins.chatbox = {
             this.touchChatboxConversation(this.getChatboxConversationById(), nextText);
             this.cancelEditChatboxMessage();
             this.chatbox.status = "User message updated. Continue from here or click Re-send.";
-            this.refreshChatboxRichContent();
+            this.refreshChatboxUi();
         },
         getChatboxResendTargetId(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
@@ -743,6 +752,13 @@ mixins.chatbox = {
             this.replaceChatboxMessages(this.chatbox.messages.slice(0, index));
             this.cancelEditChatboxMessage();
             await this.dispatchChatboxMessage(content);
+        },
+        dismissChatboxMetrics(messageId) {
+            const index = this.findChatboxMessageIndex(messageId);
+            if (index === -1) return;
+            const message = this.chatbox.messages[index];
+            message.metricsDismissed = true;
+            this.refreshChatboxUi();
         },
         scrollChatboxToBottom() {
             this.$nextTick(() => {
@@ -965,7 +981,7 @@ mixins.chatbox = {
             }
 
             const changed = beforeRaw !== (assistantMessage.rawContent || "") || beforeReasoning !== (assistantMessage.reasoningRaw || "");
-            if (changed) this.scrollChatboxToBottom();
+            if (changed) this.refreshChatboxUi(true);
             return {
                 done: false,
                 changed,
@@ -1043,7 +1059,7 @@ mixins.chatbox = {
                 } else if (mode === "text" && buffer) {
                     if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
                     this.applyChatboxAssistantUpdate(assistantMessage, buffer, "");
-                    this.scrollChatboxToBottom();
+                    this.refreshChatboxUi(true);
                     parsedAnything = true;
                     buffer = "";
                 }
@@ -1057,7 +1073,7 @@ mixins.chatbox = {
                 if (!result.changed && mode === "text") {
                     if (!tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
                     this.applyChatboxAssistantUpdate(assistantMessage, buffer, "");
-                    this.scrollChatboxToBottom();
+                    this.refreshChatboxUi(true);
                     parsedAnything = true;
                 }
             }
@@ -1086,7 +1102,7 @@ mixins.chatbox = {
             assistantMessage.rawContent = messageText;
             assistantMessage.reasoning = "";
             assistantMessage.reasoningRaw = "";
-            this.refreshChatboxRichContent();
+            this.refreshChatboxUi();
         },
         async dispatchChatboxMessage(content) {
             if (!content || this.chatbox.sending) return;
@@ -1101,14 +1117,11 @@ mixins.chatbox = {
                 pending: true,
             });
 
-            conversation.messages.push(userMessage, assistantMessage);
-            if (this.chatbox.activeConversationId === conversation.id) {
-                this.chatbox.messages = conversation.messages;
-            }
+            this.replaceChatboxConversationMessages(conversation, [...conversation.messages, userMessage, assistantMessage]);
             this.touchChatboxConversation(conversation, content);
             this.chatbox.sending = true;
-            this.refreshChatboxRichContent();
-            this.scrollChatboxToBottom();
+            await this.$nextTick();
+            this.refreshChatboxUi(true);
 
             if (!this.chatboxChatEndpoint) {
                 this.failChatboxAssistantMessage(assistantMessage, "Set the API root before sending a message.");
@@ -1208,7 +1221,7 @@ mixins.chatbox = {
                 if (this.chatbox.activeConversationId === conversation.id) {
                     this.chatbox.status = "Response completed.";
                 }
-                this.refreshChatboxRichContent();
+                this.refreshChatboxUi();
             } catch (error) {
                 const aborted = error && error.name === "AbortError";
                 assistantMessage.pending = false;
@@ -1226,21 +1239,22 @@ mixins.chatbox = {
                     this.chatbox.error = aborted ? "" : error.message || "Request failed.";
                     this.chatbox.status = aborted ? "Response stopped." : "";
                 }
-                this.refreshChatboxRichContent();
+                this.refreshChatboxUi();
             } finally {
                 this.chatbox.sending = false;
                 this.chatboxAbortController = null;
                 this.touchChatboxConversation(conversation);
                 if (this.chatbox.activeConversationId === conversation.id) {
-                    this.chatbox.messages = conversation.messages;
+                    this.chatbox.messages = conversation.messages.slice();
                 }
-                this.scrollChatboxToBottom();
+                this.refreshChatboxUi(true);
             }
         },
         async sendChatboxMessage() {
             const content = this.chatbox.draft.trim();
             if (!content || this.chatbox.sending) return;
             this.chatbox.draft = "";
+            await this.$nextTick();
             await this.dispatchChatboxMessage(content);
         },
         formatChatboxTime(value) {
@@ -1278,7 +1292,7 @@ mixins.chatbox = {
         },
         hasChatboxMetrics(message) {
             const metrics = message?.metrics;
-            if (!metrics) return false;
+            if (!metrics || message?.metricsDismissed) return false;
             return [
                 metrics.promptTokens,
                 metrics.completionTokens,
