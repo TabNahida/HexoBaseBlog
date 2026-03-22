@@ -1476,3 +1476,142 @@ ol li {
         width: 100%;
     }
 }
+
+.tool-link-card {
+    color: inherit;
+    display: block;
+    text-decoration: none;
+}
+.tool-directory-panel {
+    display: flex;
+}
+.tool-directory-copy {
+    align-self: stretch;
+    padding: 28px;
+}
+.tool-directory-copy h2 {
+    margin: 0 0 12px;
+}
+.chatbox-page .tool-hero {
+    overflow: visible;
+}
+.chatbox-backlink {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dce9f6;
+    border-radius: 999px;
+    color: #4d7897;
+    display: inline-flex;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 10px 14px;
+}
+.chatbox-button-row,
+.chatbox-main-header {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+}
+.tool-select {
+    appearance: none;
+}
+.chatbox-endpoint-line {
+    margin-top: 8px;
+}
+.chatbox-endpoint-line:first-of-type {
+    margin-top: 0;
+}
+.chatbox-card {
+    padding: 24px;
+}
+.chatbox-main-header {
+    align-items: flex-start;
+    margin-bottom: 18px;
+}
+.chatbox-main-copy h2 {
+    margin: 0 0 8px;
+}
+.chatbox-main-copy p {
+    color: #567180;
+    margin: 0;
+}
+.tool-status-pill.is-ready {
+    background: #edf9f2;
+    border: 1px solid #cbe7d6;
+    color: #357b53;
+}
+.tool-status-pill.is-error {
+    background: #fff1f4;
+    border: 1px solid #ffc7d6;
+    color: #a44568;
+}
+.tool-status-pill.is-working {
+    background: #eef7ff;
+    border: 1px solid #cfe3f4;
+    color: #537791;
+}
+.tool-status-pill.is-idle {
+    background: #f6f9fc;
+    border: 1px solid #dde7f1;
+    color: #6c8799;
+}
+.chatbox-empty-steps {
+    margin-top: 16px;
+    text-align: left;
+}
+.chatbox-empty-steps code {
+    font-size: 12px;
+}
+.chatbox-thinking {
+    background: linear-gradient(135deg, #f3f9ff 0%, #fff5fa 100%);
+    border: 1px dashed #c8dff2;
+    border-radius: 16px;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+}
+.chatbox-thinking-label {
+    color: #6b8ea8;
+    font-family: "Fira Code", "Noto Sans SC", monospace;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.16em;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+.chatbox-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+.chatbox-metric {
+    background: #f7fbff;
+    border: 1px solid #d9e7f4;
+    border-radius: 999px;
+    color: #5e7a8c;
+    font-size: 12px;
+    padding: 8px 12px;
+}
+.chatbox-metric strong {
+    color: #1e3e3f;
+    line-height: 1;
+    margin-left: 4px;
+}
+.chatbox-json-textarea {
+    min-height: 160px;
+}
+@media (max-width: 900px) {
+    .chatbox-main-header,
+    .chatbox-button-row {
+        flex-direction: column;
+    }
+    .tool-directory-copy,
+    .chatbox-card {
+        padding: 22px;
+    }
+    .chatbox-backlink {
+        width: 100%;
+    }
+}
