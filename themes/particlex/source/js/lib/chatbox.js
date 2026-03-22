@@ -301,9 +301,10 @@ mixins.chatbox = {
                 activeConversationId: conversation.id,
                 search: "",
             });
-            this.cancelEditChatboxMessage();
-            this.syncChatboxView();
-            this.rebuildChatboxThread("top");
+            this.activateChatboxConversation(conversation.id, {
+                scrollThread: "top",
+                scrollSessionsTop: true,
+            });
             return conversation;
         },
         getChatboxConversationById(conversationId = this.chatbox.activeConversationId) {
@@ -371,6 +372,13 @@ mixins.chatbox = {
             this.syncChatboxViewState();
             this.$nextTick(() => this.refreshChatboxUi(scrollToBottom));
         },
+        scrollChatboxSessionListToTop() {
+            this.$nextTick(() => {
+                const wrap = this.$refs.chatboxSessionList;
+                if (!wrap) return;
+                wrap.scrollTop = 0;
+            });
+        },
         rebuildChatboxThread(scrollMode = "") {
             this.setChatboxState({
                 threadKey: (this.chatbox.threadKey || 0) + 1,
@@ -384,6 +392,39 @@ mixins.chatbox = {
                 }
                 this.refreshChatboxUi(false);
             });
+        },
+        activateChatboxConversation(conversationId, options = {}) {
+            const conversation = this.getChatboxConversationById(conversationId);
+            if (!conversation) return null;
+
+            this.setChatboxState({
+                activeConversationId: conversation.id,
+                viewConversationId: conversation.id,
+                viewMessages: (conversation.messages || []).map((message) => this.cloneChatboxMessage(message)),
+                threadKey: (this.chatbox.threadKey || 0) + 1,
+            });
+            this.cancelEditChatboxMessage();
+
+            if (options.clearError) this.chatbox.error = "";
+            if (options.clearStatus) this.chatbox.status = "";
+
+            this.$nextTick(() => {
+                const wrap = this.$refs.chatboxLog;
+                if (wrap) {
+                    wrap.scrollLeft = 0;
+                    if (options.scrollThread === "top") wrap.scrollTop = 0;
+                    if (options.scrollThread === "bottom") wrap.scrollTop = wrap.scrollHeight;
+                }
+                if (options.scrollSessionsTop) this.scrollChatboxSessionListToTop();
+                this.refreshChatboxUi(false);
+            });
+
+            return conversation;
+        },
+        isChatboxConversationEmpty(conversationOrId = this.chatbox.activeConversationId) {
+            const conversation = this.getChatboxConversationById(this.resolveChatboxConversationId(conversationOrId));
+            if (!conversation) return true;
+            return !Array.isArray(conversation.messages) || !conversation.messages.length;
         },
         patchChatboxConversation(conversation, updater, options = {}) {
             const conversationId = this.resolveChatboxConversationId(conversation);
@@ -527,14 +568,11 @@ mixins.chatbox = {
             if (this.chatbox.sending && this.chatbox.activeConversationId !== conversation.id) {
                 this.abortChatboxRequest();
             }
-            this.setChatboxState({
-                activeConversationId: conversation.id,
+            this.activateChatboxConversation(conversation.id, {
+                clearError: true,
+                clearStatus: true,
+                scrollThread: "top",
             });
-            this.cancelEditChatboxMessage();
-            this.chatbox.error = "";
-            this.chatbox.status = "";
-            this.syncChatboxView(true);
-            this.rebuildChatboxThread("top");
         },
         getChatboxConversationPreview(conversation) {
             if (!conversation) return "";
@@ -871,6 +909,16 @@ mixins.chatbox = {
         },
         resetChatboxConversation() {
             if (this.chatbox.sending) this.abortChatboxRequest();
+            const current = this.getChatboxConversationById();
+            if (current && this.isChatboxConversationEmpty(current.id)) {
+                this.chatbox.error = "";
+                this.chatbox.status = "Finish the current empty conversation before creating another one.";
+                this.activateChatboxConversation(current.id, {
+                    scrollThread: "top",
+                    scrollSessionsTop: true,
+                });
+                return current;
+            }
             this.createChatboxConversation();
             this.cancelEditChatboxMessage();
             this.chatbox.error = "";
@@ -962,22 +1010,20 @@ mixins.chatbox = {
             if (!this.chatbox.conversations.length) {
                 this.createChatboxConversation();
                 this.chatbox.status = "Conversation deleted.";
-                this.syncChatboxView();
-                this.rebuildChatboxThread("top");
                 return;
             }
 
             if (isActive) {
                 const nextConversation =
                     this.chatbox.conversations[Math.min(index, this.chatbox.conversations.length - 1)] || this.chatbox.conversations[0];
-                this.setChatboxState({
-                    activeConversationId: nextConversation.id,
+                this.activateChatboxConversation(nextConversation.id, {
+                    scrollThread: "top",
                 });
+            } else {
+                this.syncChatboxView(false);
             }
 
             this.chatbox.status = "Conversation deleted.";
-            this.syncChatboxView(isActive);
-            this.rebuildChatboxThread(isActive ? "top" : "");
         },
         scrollChatboxToBottom() {
             this.$nextTick(() => {
