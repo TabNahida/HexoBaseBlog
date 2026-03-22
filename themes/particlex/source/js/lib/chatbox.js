@@ -1664,19 +1664,24 @@ mixins.chatbox = {
 
             this.chatbox.error = "";
             this.chatbox.status = "";
-            let conversation = this.ensureChatboxConversation();
-            if (!conversation) conversation = this.createChatboxConversation();
-            const conversationId = conversation.id;
-            const currentMessages = this.getChatboxConversationById(conversationId)?.messages || [];
-            const historyMessages = currentMessages.slice();
             const userMessage = this.createChatboxMessage("user", content);
             const assistantMessage = this.createChatboxMessage("assistant", "", {
                 rawContent: "",
                 reasoningRaw: "",
                 pending: true,
             });
+            let conversation = this.ensureChatboxConversation();
+            let historyMessages = [];
 
-            this.replaceChatboxConversationMessages(conversationId, [...historyMessages, userMessage, assistantMessage]);
+            if (!conversation) {
+                conversation = this.createChatboxConversation([userMessage, assistantMessage]);
+            } else {
+                const currentMessages = this.getChatboxConversationById(conversation.id)?.messages || [];
+                historyMessages = currentMessages.slice();
+                this.replaceChatboxConversationMessages(conversation.id, [...historyMessages, userMessage, assistantMessage]);
+            }
+
+            const conversationId = conversation.id;
             this.touchChatboxConversation(conversationId, content);
             await this.requestChatboxAssistantResponse(conversationId, assistantMessage.id, content, historyMessages);
         },
