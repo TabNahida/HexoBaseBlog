@@ -101,6 +101,12 @@ mixins.chatbox = {
         chatboxStreamLabel() {
             return this.chatbox.settings.stream ? "Streaming on" : "Streaming off";
         },
+        chatboxActiveConversation() {
+            return this.chatbox.conversations.find((conversation) => conversation.id === this.chatbox.activeConversationId) || null;
+        },
+        chatboxDisplayMessages() {
+            return this.chatboxActiveConversation?.messages || [];
+        },
         chatboxFilteredConversations() {
             const keyword = (this.chatbox.search || "").trim().toLowerCase();
             if (!keyword) return this.chatbox.conversations;
@@ -690,12 +696,12 @@ mixins.chatbox = {
             }
         },
         findChatboxMessageIndex(messageId) {
-            return this.chatbox.messages.findIndex((message) => message.id === messageId);
+            return this.chatboxDisplayMessages.findIndex((message) => message.id === messageId);
         },
         startEditChatboxMessage(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return;
-            const message = this.chatbox.messages[index];
+            const message = this.chatboxDisplayMessages[index];
             if (message.role !== "user") return;
             this.chatbox.editingMessageId = messageId;
             this.chatbox.editingDraft = message.content || message.rawContent || "";
@@ -713,12 +719,12 @@ mixins.chatbox = {
                 return;
             }
 
-            const message = this.chatbox.messages[index];
+            const message = this.chatboxDisplayMessages[index];
             if (message.role !== "user") return;
 
             message.content = nextText;
             message.rawContent = nextText;
-            this.replaceChatboxMessages(this.chatbox.messages.slice(0, index + 1));
+            this.replaceChatboxMessages(this.chatboxDisplayMessages.slice(0, index + 1));
             this.touchChatboxConversation(this.getChatboxConversationById(), nextText);
             this.cancelEditChatboxMessage();
             this.chatbox.status = "User message updated. Continue from here or click Re-send.";
@@ -728,11 +734,11 @@ mixins.chatbox = {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return "";
 
-            const current = this.chatbox.messages[index];
+            const current = this.chatboxDisplayMessages[index];
             if (current.role === "user") return current.id;
 
             for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-                if (this.chatbox.messages[cursor].role === "user") return this.chatbox.messages[cursor].id;
+                if (this.chatboxDisplayMessages[cursor].role === "user") return this.chatboxDisplayMessages[cursor].id;
             }
 
             return "";
@@ -742,23 +748,52 @@ mixins.chatbox = {
             const index = this.findChatboxMessageIndex(targetId);
             if (index === -1) return;
 
-            const fallbackText = this.chatbox.messages[index].content || this.chatbox.messages[index].rawContent || "";
+            const fallbackText =
+                this.chatboxDisplayMessages[index].content || this.chatboxDisplayMessages[index].rawContent || "";
             const content = (typeof overrideText === "string" ? overrideText : fallbackText).trim();
             if (!content) {
                 this.chatbox.error = "Cannot re-send an empty message.";
                 return;
             }
 
-            this.replaceChatboxMessages(this.chatbox.messages.slice(0, index));
+            this.replaceChatboxMessages(this.chatboxDisplayMessages.slice(0, index));
             this.cancelEditChatboxMessage();
             await this.dispatchChatboxMessage(content);
         },
         dismissChatboxMetrics(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return;
-            const message = this.chatbox.messages[index];
+            const message = this.chatboxDisplayMessages[index];
             message.metricsDismissed = true;
             this.refreshChatboxUi();
+        },
+        deleteChatboxConversation(conversationId) {
+            const index = this.chatbox.conversations.findIndex((conversation) => conversation.id === conversationId);
+            if (index === -1) return;
+
+            const isActive = this.chatbox.activeConversationId === conversationId;
+            if (isActive && this.chatbox.sending) this.abortChatboxRequest();
+
+            this.chatbox.conversations.splice(index, 1);
+            this.cancelEditChatboxMessage();
+            this.chatbox.error = "";
+
+            if (!this.chatbox.conversations.length) {
+                this.createChatboxConversation();
+                this.chatbox.status = "Conversation deleted.";
+                this.refreshChatboxUi();
+                return;
+            }
+
+            if (isActive) {
+                const nextConversation =
+                    this.chatbox.conversations[Math.min(index, this.chatbox.conversations.length - 1)] || this.chatbox.conversations[0];
+                this.chatbox.activeConversationId = nextConversation.id;
+                this.chatbox.messages = nextConversation.messages.slice();
+            }
+
+            this.chatbox.status = "Conversation deleted.";
+            this.refreshChatboxUi(isActive);
         },
         scrollChatboxToBottom() {
             this.$nextTick(() => {
@@ -797,7 +832,7 @@ mixins.chatbox = {
             }
             return this.normalizeChatboxText(message.content);
         },
-        buildChatboxMessages(userMessage, historyMessages = this.chatbox.messages) {
+        buildChatboxMessages(userMessage, historyMessages = this.chatboxDisplayMessages) {
             const messages = [];
             const prompt = this.chatbox.settings.systemPrompt.trim();
             if (prompt) {

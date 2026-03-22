@@ -49,21 +49,34 @@
             </label>
 
             <div class="chatbox-session-list">
-                <button
+                <div
                     v-for="conversation in chatboxFilteredConversations"
                     :key="conversation.id"
-                    type="button"
-                    class="chatbox-session-item"
+                    class="chatbox-session-entry"
                     :class="{ active: chatbox.activeConversationId === conversation.id }"
-                    @click="selectChatboxConversation(conversation.id)"
                 >
-                    <span class="chatbox-session-item-title" v-text="conversation.title"></span>
-                    <span class="chatbox-session-item-preview" v-text="getChatboxConversationPreview(conversation)"></span>
-                    <span class="chatbox-session-item-meta">
-                        <time v-text="formatChatboxConversationTime(conversation.updatedAt)"></time>
-                        <span v-text="`${conversation.messages.length} msgs`"></span>
-                    </span>
-                </button>
+                    <button
+                        type="button"
+                        class="chatbox-session-item"
+                        @click="selectChatboxConversation(conversation.id)"
+                    >
+                        <span class="chatbox-session-item-title" v-text="conversation.title"></span>
+                        <span class="chatbox-session-item-preview" v-text="getChatboxConversationPreview(conversation)"></span>
+                        <span class="chatbox-session-item-meta">
+                            <time v-text="formatChatboxConversationTime(conversation.updatedAt)"></time>
+                            <span v-text="`${conversation.messages.length} msgs`"></span>
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        class="tool-icon-button chatbox-session-delete"
+                        title="Delete conversation"
+                        aria-label="Delete conversation"
+                        @click.stop="deleteChatboxConversation(conversation.id)"
+                    >
+                        <i class="fa-solid fa-trash-can fa-fw"></i>
+                    </button>
+                </div>
 
                 <div v-if="!chatboxFilteredConversations.length" class="chatbox-session-empty">
                     <p>No conversations matched your search.</p>
@@ -102,12 +115,11 @@
                 <span class="tool-status-pill" v-text="chatboxModelLabel"></span>
                 <span class="tool-status-pill" v-text="chatboxThinkModeLabel"></span>
                 <span class="tool-status-pill" v-text="chatboxStreamLabel"></span>
-                <span class="tool-status-pill" v-if="chatbox.settings.showSpeedMetrics">Speed metrics on</span>
             </div>
 
             <div class="tool-chat-log chatbox-log" ref="chatboxLog">
                 <div class="chatbox-thread">
-                    <div v-if="!chatbox.messages.length" class="tool-empty-state chatbox-empty">
+                    <div v-if="!chatboxDisplayMessages.length" class="tool-empty-state chatbox-empty">
                         <i class="fa-solid fa-wave-square"></i>
                         <h3>Pick an endpoint, then start</h3>
                         <ol class="chatbox-empty-steps">
@@ -118,7 +130,7 @@
                     </div>
 
                     <article
-                        v-for="message in chatbox.messages"
+                        v-for="message in chatboxDisplayMessages"
                         :key="message.id"
                         class="tool-chat-message"
                         :class="['role-' + message.role, { 'is-editing': chatbox.editingMessageId === message.id }]"
