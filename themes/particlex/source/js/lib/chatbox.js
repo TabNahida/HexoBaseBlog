@@ -282,6 +282,45 @@ mixins.chatbox = {
                 ""
             );
         },
+        extractChatboxChunkContent(json) {
+            const choice = json?.choices?.[0];
+            return this.mergeChatboxText(
+                this.extractChatboxText(choice?.delta?.content),
+                this.extractChatboxText(choice?.delta?.text),
+                this.extractChatboxText(choice?.delta),
+                this.extractChatboxText(choice?.message?.content),
+                this.extractChatboxText(choice?.message?.text),
+                this.extractChatboxText(choice?.message),
+                this.extractChatboxText(choice?.text),
+                this.extractChatboxText(json?.delta?.content),
+                this.extractChatboxText(json?.delta?.text),
+                this.extractChatboxText(json?.delta),
+                this.extractChatboxText(json?.message?.content),
+                this.extractChatboxText(json?.message?.text),
+                this.extractChatboxText(json?.message),
+                this.extractChatboxText(json?.content),
+                this.extractChatboxText(json?.text),
+                this.extractChatboxText(json?.output_text)
+            );
+        },
+        extractChatboxChunkReasoning(json, deltaOnly = false) {
+            const choice = json?.choices?.[0];
+            return this.mergeChatboxText(
+                this.extractChatboxReasoning(choice, deltaOnly),
+                this.extractChatboxText(json?.delta?.reasoning_content),
+                this.extractChatboxText(json?.delta?.reasoning),
+                this.extractChatboxText(json?.delta?.thinking),
+                this.extractChatboxText(json?.delta?.reasoning_text),
+                this.extractChatboxText(json?.message?.reasoning_content),
+                this.extractChatboxText(json?.message?.reasoning),
+                this.extractChatboxText(json?.message?.thinking),
+                this.extractChatboxText(json?.message?.reasoning_text),
+                this.extractChatboxText(json?.reasoning_content),
+                this.extractChatboxText(json?.reasoning),
+                this.extractChatboxText(json?.thinking),
+                this.extractChatboxText(json?.reasoning_text)
+            );
+        },
         applyChatboxAssistantUpdate(message, rawText = "", reasoningText = "") {
             if (rawText) message.rawContent += rawText;
             if (reasoningText) message.reasoningRaw = this.mergeChatboxText(message.reasoningRaw, reasoningText);
@@ -552,6 +591,36 @@ mixins.chatbox = {
 
             return metrics;
         },
+        parseChatboxStreamPayloads(payload) {
+            const trimmed = payload.trim();
+            if (!trimmed) return [];
+            if (trimmed === "[DONE]") return ["[DONE]"];
+
+            const parsed = [];
+            const candidates = [trimmed];
+            if (trimmed.includes("\n")) {
+                trimmed
+                    .split(/\r?\n/)
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                    .forEach((item) => candidates.push(item));
+            }
+
+            const seen = new Set();
+            for (const candidate of candidates) {
+                if (seen.has(candidate)) continue;
+                seen.add(candidate);
+
+                if (!candidate.startsWith("{") && !candidate.startsWith("[")) continue;
+                try {
+                    parsed.push(JSON.parse(candidate));
+                } catch (error) {
+                    continue;
+                }
+            }
+
+            return parsed;
+        },
         processChatboxStreamEvent(block, assistantMessage, tracker) {
             const dataLines = block
                 .split(/\r?\n/)
@@ -561,25 +630,26 @@ mixins.chatbox = {
 
             const payload = dataLines.join("\n").trim();
             if (!payload) return false;
-            if (payload === "[DONE]") return true;
+            const events = this.parseChatboxStreamPayloads(payload);
+            if (events.includes("[DONE]")) return true;
+            if (!events.length) return false;
 
-            const json = JSON.parse(payload);
-            if (json?.error) {
-                throw new Error(json.error.message || json.error || "Streaming request failed.");
+            for (const json of events) {
+                if (json?.error) {
+                    throw new Error(json.error.message || json.error || "Streaming request failed.");
+                }
+
+                const choice = json?.choices?.[0];
+                const rawText = this.extractChatboxChunkContent(json);
+                const reasoningText = this.extractChatboxChunkReasoning(json, true);
+
+                if ((rawText || reasoningText) && !tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
+                this.applyChatboxAssistantUpdate(assistantMessage, rawText, reasoningText);
+                tracker.metrics = this.mergeChatboxMetrics(tracker.metrics, this.extractChatboxMetrics(json));
+
+                if (choice?.finish_reason) assistantMessage.finishReason = choice.finish_reason;
             }
 
-            const choice = json?.choices?.[0];
-            const rawText =
-                this.extractChatboxText(choice?.delta?.content) ||
-                this.extractChatboxText(choice?.message?.content) ||
-                this.extractChatboxText(json?.output_text);
-            const reasoningText = this.extractChatboxReasoning(choice, true);
-
-            if ((rawText || reasoningText) && !tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
-            this.applyChatboxAssistantUpdate(assistantMessage, rawText, reasoningText);
-            tracker.metrics = this.mergeChatboxMetrics(tracker.metrics, this.extractChatboxMetrics(json));
-
-            if (choice?.finish_reason) assistantMessage.finishReason = choice.finish_reason;
             this.scrollChatboxToBottom();
             return false;
         },
@@ -606,13 +676,12 @@ mixins.chatbox = {
         },
         applyChatboxFinalPayload(payload, assistantMessage, tracker) {
             const choice = payload?.choices?.[0];
-            const rawText =
-                this.extractChatboxText(choice?.message?.content) ||
-                this.extractChatboxText(choice?.delta?.content) ||
-                this.extractChatboxText(payload?.output?.[0]?.content) ||
-                this.extractChatboxText(payload?.response?.output_text) ||
-                this.extractChatboxText(payload?.output_text);
-            const reasoningText = this.extractChatboxReasoning(choice, false);
+            const rawText = this.mergeChatboxText(
+                this.extractChatboxChunkContent(payload),
+                this.extractChatboxText(payload?.output?.[0]?.content),
+                this.extractChatboxText(payload?.response?.output_text)
+            );
+            const reasoningText = this.extractChatboxChunkReasoning(payload, false);
 
             if ((rawText || reasoningText) && !tracker.firstTokenAt) tracker.firstTokenAt = performance.now();
             this.applyChatboxAssistantUpdate(assistantMessage, rawText, reasoningText);
@@ -731,7 +800,10 @@ mixins.chatbox = {
             } catch (error) {
                 const aborted = error && error.name === "AbortError";
                 assistantMessage.pending = false;
-                if (!assistantMessage.content && !assistantMessage.reasoning) {
+                if (!assistantMessage.content && !assistantMessage.reasoning && !aborted) {
+                    assistantMessage.content = "No displayable text was parsed from the streaming response.";
+                }
+                if (!assistantMessage.content && !assistantMessage.reasoning && aborted) {
                     this.chatbox.messages = this.chatbox.messages.filter((message) => message.id !== assistantMessage.id);
                 }
                 this.chatbox.error = aborted ? "" : error.message || "Request failed.";
@@ -781,6 +853,7 @@ mixins.chatbox = {
             if (!message) return "";
             if (message.role !== "assistant") return message.content;
             if (message.content) return message.content;
+            if (message.rawContent) return this.normalizeChatboxText(message.rawContent.replace(/<\/?think>/gi, ""));
             if (!this.chatbox.settings.showThinking && message.reasoning) return "Reasoning hidden.";
             if (message.pending) return "Waiting for first token...";
             return "";

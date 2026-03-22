@@ -26,8 +26,139 @@
     </section>
 
     <section class="tool-workspace chatbox-layout">
+        <section class="tool-panel tool-console chatbox-main">
+            <div class="chatbox-main-header">
+                <div class="chatbox-main-copy">
+                    <p class="tool-panel-kicker">chatbox</p>
+                    <h2>Standalone chat workspace</h2>
+                    <p>
+                        Endpoint-first setup, model discovery and advanced controls inspired by the llama.cpp
+                        server experience.
+                    </p>
+                </div>
+                <div class="tool-console-actions">
+                    <button type="button" class="tool-ghost-button" :disabled="chatbox.fetchingModels" @click="fetchChatboxModels">
+                        <i class="fa-solid fa-rotate fa-fw"></i>
+                        <span>Refresh models</span>
+                    </button>
+                    <button type="button" class="tool-ghost-button" :disabled="!chatbox.messages.length" @click="resetChatboxConversation">
+                        <i class="fa-solid fa-sparkles fa-fw"></i>
+                        <span>New chat</span>
+                    </button>
+                    <button type="button" class="tool-danger-button" :disabled="!chatbox.sending" @click="abortChatboxRequest">
+                        <i class="fa-solid fa-stop fa-fw"></i>
+                        <span>Stop</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="tool-status-bar chatbox-status-bar">
+                <span class="tool-status-pill" :class="chatboxConnectionStateClass" v-text="chatboxConnectionLabel"></span>
+                <span class="tool-status-pill" v-text="chatboxModelLabel"></span>
+                <span class="tool-status-pill" v-text="chatboxThinkModeLabel"></span>
+                <span class="tool-status-pill" v-text="chatboxStreamLabel"></span>
+                <span class="tool-status-pill" v-if="chatbox.settings.showSpeedMetrics">Speed metrics on</span>
+            </div>
+
+            <div class="tool-chat-log chatbox-log" ref="chatboxLog">
+                <div v-if="!chatbox.messages.length" class="tool-empty-state chatbox-empty">
+                    <i class="fa-solid fa-wave-square"></i>
+                    <h3>Pick an endpoint, then start</h3>
+                    <ol class="chatbox-empty-steps">
+                        <li>Set the API root or a compatible endpoint.</li>
+                        <li>Fetch models from <code>/models</code> or type the model id manually.</li>
+                        <li>Adjust think / sampling controls and send the first message.</li>
+                    </ol>
+                </div>
+
+                <article
+                    v-for="message in chatbox.messages"
+                    :key="message.id"
+                    class="tool-chat-message"
+                    :class="'role-' + message.role"
+                >
+                    <div class="tool-chat-role">
+                        <span class="tool-role-badge" v-text="message.role === 'user' ? 'You' : 'Assistant'"></span>
+                        <time class="tool-message-time" v-text="formatChatboxTime(message.createdAt)"></time>
+                    </div>
+
+                    <div class="tool-chat-bubble" :class="{ pending: message.pending }">
+                        <div
+                            v-if="message.reasoning && chatbox.settings.showThinking"
+                            class="chatbox-thinking"
+                        >
+                            <div class="chatbox-thinking-label">Think</div>
+                            <div class="tool-chat-text" v-text="message.reasoning"></div>
+                        </div>
+
+                        <div
+                            class="tool-chat-text"
+                            v-text="getChatboxMessageBodyText(message)"
+                        ></div>
+                    </div>
+
+                    <div
+                        v-if="chatbox.settings.showSpeedMetrics && hasChatboxMetrics(message)"
+                        class="chatbox-metrics"
+                    >
+                        <span class="chatbox-metric" v-if="message.metrics.promptTokens">
+                            Prompt
+                            <strong v-text="formatChatboxInteger(message.metrics.promptTokens)"></strong>
+                        </span>
+                        <span class="chatbox-metric" v-if="message.metrics.completionTokens">
+                            Output
+                            <strong v-text="formatChatboxInteger(message.metrics.completionTokens)"></strong>
+                        </span>
+                        <span class="chatbox-metric" v-if="message.metrics.prefillSpeed">
+                            Prefill
+                            <strong v-text="formatChatboxRate(message.metrics.prefillSpeed)"></strong>
+                        </span>
+                        <span class="chatbox-metric" v-if="message.metrics.decodeSpeed">
+                            Decode
+                            <strong v-text="formatChatboxRate(message.metrics.decodeSpeed)"></strong>
+                        </span>
+                        <span class="chatbox-metric" v-if="message.metrics.ttftMs">
+                            TTFT
+                            <strong v-text="formatChatboxDuration(message.metrics.ttftMs)"></strong>
+                        </span>
+                        <span class="chatbox-metric" v-if="message.metrics.totalDurationMs">
+                            Total
+                            <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
+                        </span>
+                    </div>
+                </article>
+            </div>
+
+            <div v-if="chatbox.error" class="tool-alert error" v-text="chatbox.error"></div>
+            <div v-if="chatbox.status" class="tool-alert info" v-text="chatbox.status"></div>
+
+            <form class="tool-composer chatbox-composer" @submit.prevent="sendChatboxMessage">
+                <textarea
+                    class="tool-textarea tool-composer-input chatbox-composer-input"
+                    v-model="chatbox.draft"
+                    placeholder="Send a message. Press Enter to send, Shift + Enter for a new line."
+                    @keydown="handleChatboxComposerKeydown"
+                ></textarea>
+
+                <div class="tool-composer-footer">
+                    <p>
+                        Uses the OpenAI-compatible <code>/chat/completions</code> shape. The <code>think</code>
+                        field is sent only when you switch Think Mode away from Default.
+                    </p>
+                    <button
+                        type="submit"
+                        class="tool-primary-button"
+                        :disabled="chatbox.sending || !chatbox.draft.trim()"
+                    >
+                        <i class="fa-solid fa-paper-plane fa-fw"></i>
+                        <span v-text="chatbox.sending ? 'Sending...' : 'Send'"></span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
         <aside class="chatbox-sidebar tool-settings-stack">
-            <section class="tool-panel chatbox-card">
+            <section class="tool-panel chatbox-card chatbox-card-important">
                 <div class="tool-panel-header">
                     <div>
                         <p class="tool-panel-kicker">Connection</p>
@@ -128,13 +259,17 @@
                 </p>
             </section>
 
-            <section class="tool-panel chatbox-card">
-                <div class="tool-panel-header">
+            <details class="tool-panel chatbox-card chatbox-foldout" open>
+                <summary class="chatbox-foldout-summary">
                     <div>
                         <p class="tool-panel-kicker">Reasoning</p>
                         <h2>Think & Display</h2>
                     </div>
-                </div>
+                    <span class="chatbox-foldout-indicator">
+                        <i class="fa-solid fa-chevron-down fa-fw"></i>
+                    </span>
+                </summary>
+                <div class="chatbox-foldout-body">
 
                 <label class="tool-field">
                     <span>System Prompt</span>
@@ -172,15 +307,20 @@
                         <span>Show prefill and decode speeds when timing or usage data is available.</span>
                     </label>
                 </div>
-            </section>
+                </div>
+            </details>
 
-            <section class="tool-panel chatbox-card">
-                <div class="tool-panel-header">
+            <details class="tool-panel chatbox-card chatbox-foldout">
+                <summary class="chatbox-foldout-summary">
                     <div>
                         <p class="tool-panel-kicker">Sampling</p>
                         <h2>Generation Controls</h2>
                     </div>
-                </div>
+                    <span class="chatbox-foldout-indicator">
+                        <i class="fa-solid fa-chevron-down fa-fw"></i>
+                    </span>
+                </summary>
+                <div class="chatbox-foldout-body">
 
                 <div class="tool-inline-fields">
                     <label class="tool-field">
@@ -239,15 +379,20 @@
                         placeholder="Comma or newline separated"
                     />
                 </label>
-            </section>
+                </div>
+            </details>
 
-            <section class="tool-panel chatbox-card">
-                <div class="tool-panel-header">
+            <details class="tool-panel chatbox-card chatbox-foldout">
+                <summary class="chatbox-foldout-summary">
                     <div>
                         <p class="tool-panel-kicker">Advanced</p>
                         <h2>Extra Request Body</h2>
                     </div>
-                </div>
+                    <span class="chatbox-foldout-indicator">
+                        <i class="fa-solid fa-chevron-down fa-fw"></i>
+                    </span>
+                </summary>
+                <div class="chatbox-foldout-body">
 
                 <label class="tool-field">
                     <span>Extra Body JSON</span>
@@ -262,138 +407,8 @@
                     This JSON is merged into the final request body after the built-in controls, so you can pass
                     extra vendor-specific fields without editing the code again.
                 </p>
-            </section>
+                </div>
+            </details>
         </aside>
-
-        <section class="tool-panel tool-console chatbox-main">
-            <div class="chatbox-main-header">
-                <div class="chatbox-main-copy">
-                    <p class="tool-panel-kicker">chatbox</p>
-                    <h2>Standalone chat workspace</h2>
-                    <p>
-                        Endpoint-first setup, model discovery and advanced controls inspired by the llama.cpp
-                        server experience.
-                    </p>
-                </div>
-                <div class="tool-console-actions">
-                    <button type="button" class="tool-ghost-button" :disabled="chatbox.fetchingModels" @click="fetchChatboxModels">
-                        <i class="fa-solid fa-rotate fa-fw"></i>
-                        <span>Refresh models</span>
-                    </button>
-                    <button type="button" class="tool-ghost-button" :disabled="!chatbox.messages.length" @click="resetChatboxConversation">
-                        <i class="fa-solid fa-sparkles fa-fw"></i>
-                        <span>New chat</span>
-                    </button>
-                    <button type="button" class="tool-danger-button" :disabled="!chatbox.sending" @click="abortChatboxRequest">
-                        <i class="fa-solid fa-stop fa-fw"></i>
-                        <span>Stop</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="tool-status-bar chatbox-status-bar">
-                <span class="tool-status-pill" :class="chatboxConnectionStateClass" v-text="chatboxConnectionLabel"></span>
-                <span class="tool-status-pill" v-text="chatboxModelLabel"></span>
-                <span class="tool-status-pill" v-text="chatboxThinkModeLabel"></span>
-                <span class="tool-status-pill" v-text="chatboxStreamLabel"></span>
-                <span class="tool-status-pill" v-if="chatbox.settings.showSpeedMetrics">Speed metrics on</span>
-            </div>
-
-            <div class="tool-chat-log" ref="chatboxLog">
-                <div v-if="!chatbox.messages.length" class="tool-empty-state chatbox-empty">
-                    <i class="fa-solid fa-wave-square"></i>
-                    <h3>Pick an endpoint, then start</h3>
-                    <ol class="chatbox-empty-steps">
-                        <li>Set the API root or a compatible endpoint.</li>
-                        <li>Fetch models from <code>/models</code> or type the model id manually.</li>
-                        <li>Adjust think / sampling controls and send the first message.</li>
-                    </ol>
-                </div>
-
-                <article
-                    v-for="message in chatbox.messages"
-                    :key="message.id"
-                    class="tool-chat-message"
-                    :class="'role-' + message.role"
-                >
-                    <div class="tool-chat-role">
-                        <span class="tool-role-badge" v-text="message.role === 'user' ? 'You' : 'Assistant'"></span>
-                        <time class="tool-message-time" v-text="formatChatboxTime(message.createdAt)"></time>
-                    </div>
-
-                    <div class="tool-chat-bubble" :class="{ pending: message.pending }">
-                        <div
-                            v-if="message.reasoning && chatbox.settings.showThinking"
-                            class="chatbox-thinking"
-                        >
-                            <div class="chatbox-thinking-label">Think</div>
-                            <div class="tool-chat-text" v-text="message.reasoning"></div>
-                        </div>
-
-                        <div
-                            class="tool-chat-text"
-                            v-text="getChatboxMessageBodyText(message)"
-                        ></div>
-                    </div>
-
-                    <div
-                        v-if="chatbox.settings.showSpeedMetrics && hasChatboxMetrics(message)"
-                        class="chatbox-metrics"
-                    >
-                        <span class="chatbox-metric" v-if="message.metrics.promptTokens">
-                            Prompt
-                            <strong v-text="formatChatboxInteger(message.metrics.promptTokens)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.completionTokens">
-                            Output
-                            <strong v-text="formatChatboxInteger(message.metrics.completionTokens)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.prefillSpeed">
-                            Prefill
-                            <strong v-text="formatChatboxRate(message.metrics.prefillSpeed)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.decodeSpeed">
-                            Decode
-                            <strong v-text="formatChatboxRate(message.metrics.decodeSpeed)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.ttftMs">
-                            TTFT
-                            <strong v-text="formatChatboxDuration(message.metrics.ttftMs)"></strong>
-                        </span>
-                        <span class="chatbox-metric" v-if="message.metrics.totalDurationMs">
-                            Total
-                            <strong v-text="formatChatboxDuration(message.metrics.totalDurationMs)"></strong>
-                        </span>
-                    </div>
-                </article>
-            </div>
-
-            <div v-if="chatbox.error" class="tool-alert error" v-text="chatbox.error"></div>
-            <div v-if="chatbox.status" class="tool-alert info" v-text="chatbox.status"></div>
-
-            <form class="tool-composer" @submit.prevent="sendChatboxMessage">
-                <textarea
-                    class="tool-textarea tool-composer-input"
-                    v-model="chatbox.draft"
-                    placeholder="Send a message. Press Enter to send, Shift + Enter for a new line."
-                    @keydown="handleChatboxComposerKeydown"
-                ></textarea>
-
-                <div class="tool-composer-footer">
-                    <p>
-                        Uses the OpenAI-compatible <code>/chat/completions</code> shape. The <code>think</code>
-                        field is sent only when you switch Think Mode away from Default.
-                    </p>
-                    <button
-                        type="submit"
-                        class="tool-primary-button"
-                        :disabled="chatbox.sending || !chatbox.draft.trim()"
-                    >
-                        <i class="fa-solid fa-paper-plane fa-fw"></i>
-                        <span v-text="chatbox.sending ? 'Sending...' : 'Send'"></span>
-                    </button>
-                </div>
-            </form>
-        </section>
     </section>
 </div>
