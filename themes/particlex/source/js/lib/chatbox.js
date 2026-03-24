@@ -662,6 +662,57 @@ mixins.chatbox = {
             if (!source) return "";
             return this.escapeChatboxHtml(source).replace(/\n/g, "<br>");
         },
+        normalizeChatboxReasoningMarkdown(text) {
+            const source = typeof text === "string" ? text.replace(/\r\n/g, "\n") : "";
+            if (!source) return "";
+
+            const lines = source.split("\n");
+            const normalized = [];
+            let activeFence = "";
+
+            lines.forEach((originalLine) => {
+                const trimmed = originalLine.trim();
+                if (!activeFence) {
+                    const openFence = trimmed.match(/^(`{3,}|~{3,})(.*)$/);
+                    if (openFence) {
+                        activeFence = openFence[1];
+                        normalized.push(originalLine);
+                        return;
+                    }
+
+                    if (
+                        /^ {4,}(?=\S)/.test(originalLine) &&
+                        !/^ {0,3}(?:[-*+] |\d+[.)] |>)/.test(originalLine)
+                    ) {
+                        normalized.push(originalLine.replace(/^ {4}/, ""));
+                        return;
+                    }
+
+                    normalized.push(originalLine);
+                    return;
+                }
+
+                const closeFence = trimmed.match(/^(`{3,}|~{3,})(.*)$/);
+                if (
+                    closeFence &&
+                    closeFence[1][0] === activeFence[0] &&
+                    closeFence[1].length >= activeFence.length
+                ) {
+                    const indent = originalLine.slice(0, originalLine.indexOf(trimmed));
+                    normalized.push(`${indent}${closeFence[1]}`);
+                    activeFence = "";
+
+                    const trailing = closeFence[2].trimStart();
+                    if (trailing) normalized.push(trailing);
+                    return;
+                }
+
+                normalized.push(originalLine);
+            });
+
+            if (activeFence) normalized.push(activeFence);
+            return normalized.join("\n");
+        },
         renderChatboxMessageHtml(message) {
             const text = this.getChatboxMessageBodyText(message);
             const renderAsMarkdown =
@@ -672,9 +723,10 @@ mixins.chatbox = {
         },
         renderChatboxReasoningHtml(message) {
             const text = message?.reasoning || "";
+            const normalizedText = this.normalizeChatboxReasoningMarkdown(text);
             return this.chatbox.settings.renderThinkingMarkdown
-                ? this.renderChatboxMarkdown(text)
-                : this.renderChatboxPlainText(text);
+                ? this.renderChatboxMarkdown(normalizedText)
+                : this.renderChatboxPlainText(normalizedText);
         },
         refreshChatboxRichContent() {
             this.$nextTick(() => {
