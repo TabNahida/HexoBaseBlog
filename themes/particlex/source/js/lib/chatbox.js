@@ -189,6 +189,9 @@ mixins.chatbox = {
             const parsed = Number.parseInt(value, 10);
             return Number.isFinite(parsed) ? parsed : undefined;
         },
+        getChatboxArrayLength(value) {
+            return Array.isArray(value) ? value.length : undefined;
+        },
         firstFiniteChatboxNumber(candidates) {
             for (const candidate of candidates) {
                 if (candidate === "" || candidate === null || typeof candidate === "undefined") continue;
@@ -1031,6 +1034,71 @@ mixins.chatbox = {
                 editingDraft: "",
             });
         },
+        buildChatboxMessageDetails(message) {
+            if (!message) return "";
+
+            const lines = [
+                `Role: ${message.role === "user" ? "User" : "Assistant"}`,
+            ];
+
+            if (message.createdAt) {
+                lines.push(`Time: ${new Date(message.createdAt).toLocaleString()}`);
+            }
+            if (message.pending) lines.push("Status: pending");
+            if (message.finishReason) lines.push(`Finish reason: ${message.finishReason}`);
+
+            const content = this.normalizeChatboxText(
+                message.role === "assistant"
+                    ? message.content || (message.rawContent || "").replace(/<\/?think>/gi, "")
+                    : message.content || message.rawContent || ""
+            );
+            lines.push("", "Content:", content || "(empty)");
+
+            const reasoning = this.normalizeChatboxText(message.reasoning || message.reasoningRaw || "");
+            if (reasoning) {
+                lines.push("", "Reasoning:", reasoning);
+            }
+
+            if (this.hasChatboxMetrics(message)) {
+                lines.push("", "Metrics:");
+                if (Number.isFinite(message.metrics?.promptTokens)) {
+                    lines.push(`Prompt tokens: ${this.formatChatboxInteger(message.metrics.promptTokens)}`);
+                }
+                if (Number.isFinite(message.metrics?.completionTokens)) {
+                    lines.push(`Output tokens: ${this.formatChatboxInteger(message.metrics.completionTokens)}`);
+                }
+                if (Number.isFinite(message.metrics?.prefillSpeed)) {
+                    lines.push(`Prefill speed: ${this.formatChatboxRate(message.metrics.prefillSpeed)}`);
+                }
+                if (Number.isFinite(message.metrics?.decodeSpeed)) {
+                    lines.push(`Decode speed: ${this.formatChatboxRate(message.metrics.decodeSpeed)}`);
+                }
+                if (Number.isFinite(message.metrics?.ttftMs)) {
+                    lines.push(`TTFT: ${this.formatChatboxDuration(message.metrics.ttftMs)}`);
+                }
+                if (Number.isFinite(message.metrics?.totalDurationMs)) {
+                    lines.push(`Total: ${this.formatChatboxDuration(message.metrics.totalDurationMs)}`);
+                }
+            }
+
+            return lines.join("\n");
+        },
+        async copyChatboxMessageDetails(messageId) {
+            const message = this.getChatboxMessageById(messageId) || this.chatbox.viewMessages[this.findChatboxMessageIndex(messageId)];
+            if (!message) return;
+            if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+                this.chatbox.error = "Clipboard access is unavailable in this browser.";
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(this.buildChatboxMessageDetails(message));
+                this.chatbox.error = "";
+                this.chatbox.status = "Copied message details.";
+            } catch (error) {
+                this.chatbox.error = error?.message || "Failed to copy message details.";
+            }
+        },
         async saveEditedChatboxMessage(messageId) {
             const index = this.findChatboxMessageIndex(messageId);
             if (index === -1) return;
@@ -1173,39 +1241,114 @@ mixins.chatbox = {
         extractChatboxMetrics(payload) {
             const usage = payload?.usage || payload?.token_usage || payload?.x_usage || {};
             const timings = payload?.timings || payload?.performance || payload?.metrics || payload?.stats || {};
+            const promptTokens = this.firstFiniteChatboxNumber([
+                usage?.prompt_tokens,
+                usage?.input_tokens,
+                usage?.promptTokens,
+                payload?.prompt_tokens,
+                payload?.input_tokens,
+                payload?.promptTokens,
+                payload?.num_prompt_tokens,
+                payload?.numPromptTokens,
+                timings?.prompt_n,
+                timings?.prompt_tokens,
+                timings?.input_tokens,
+                timings?.num_prompt_tokens,
+                timings?.numPromptTokens,
+                this.getChatboxArrayLength(payload?.prompt_token_ids),
+                this.getChatboxArrayLength(payload?.promptTokenIds),
+                this.getChatboxArrayLength(payload?.prompt?.token_ids),
+                this.getChatboxArrayLength(payload?.prompt?.tokenIds),
+            ]);
+            const completionTokens = this.firstFiniteChatboxNumber([
+                usage?.completion_tokens,
+                usage?.output_tokens,
+                usage?.completionTokens,
+                payload?.completion_tokens,
+                payload?.output_tokens,
+                payload?.completionTokens,
+                payload?.num_output_tokens,
+                payload?.numOutputTokens,
+                payload?.num_generated_tokens,
+                payload?.numGeneratedTokens,
+                payload?.num_completion_tokens,
+                payload?.numCompletionTokens,
+                timings?.predicted_n,
+                timings?.completion_tokens,
+                timings?.output_tokens,
+                timings?.num_output_tokens,
+                timings?.numOutputTokens,
+                timings?.num_generated_tokens,
+                timings?.numGeneratedTokens,
+                this.getChatboxArrayLength(payload?.token_ids),
+                this.getChatboxArrayLength(payload?.tokenIds),
+                this.getChatboxArrayLength(payload?.output_token_ids),
+                this.getChatboxArrayLength(payload?.outputTokenIds),
+                this.getChatboxArrayLength(payload?.completion_token_ids),
+                this.getChatboxArrayLength(payload?.completionTokenIds),
+                this.getChatboxArrayLength(payload?.generated_token_ids),
+                this.getChatboxArrayLength(payload?.generatedTokenIds),
+            ]);
+            const totalTokens = this.firstFiniteChatboxNumber([
+                usage?.total_tokens,
+                usage?.totalTokens,
+                payload?.total_tokens,
+                payload?.totalTokens,
+                timings?.total_tokens,
+                timings?.totalTokens,
+            ]);
 
             return {
-                promptTokens: this.firstFiniteChatboxNumber([
-                    usage?.prompt_tokens,
-                    usage?.input_tokens,
-                    usage?.promptTokens,
-                    timings?.prompt_n,
-                    timings?.prompt_tokens,
-                ]),
-                completionTokens: this.firstFiniteChatboxNumber([
-                    usage?.completion_tokens,
-                    usage?.output_tokens,
-                    usage?.completionTokens,
-                    timings?.predicted_n,
-                    timings?.completion_tokens,
-                    timings?.output_tokens,
-                ]),
-                totalTokens: this.firstFiniteChatboxNumber([
-                    usage?.total_tokens,
-                    usage?.totalTokens,
-                    timings?.total_tokens,
-                ]),
+                promptTokens,
+                completionTokens,
+                totalTokens,
                 prefillSpeed: this.firstFiniteChatboxNumber([
                     timings?.prompt_per_second,
                     timings?.prefill_tokens_per_second,
                     timings?.prefill_tps,
                     timings?.prompt_tokens_per_second,
+                    timings?.avg_prompt_throughput,
+                    timings?.input_tps,
+                    timings?.input_tokens_per_second,
+                    payload?.prompt_per_second,
+                    payload?.prefill_tokens_per_second,
+                    payload?.avg_prompt_throughput,
                 ]),
                 decodeSpeed: this.firstFiniteChatboxNumber([
                     timings?.predicted_per_second,
                     timings?.decode_tokens_per_second,
                     timings?.decode_tps,
                     timings?.completion_tokens_per_second,
+                    timings?.avg_generation_throughput,
+                    timings?.generation_tokens_per_second,
+                    timings?.tokens_per_second,
+                    timings?.output_tps,
+                    payload?.predicted_per_second,
+                    payload?.decode_tokens_per_second,
+                    payload?.avg_generation_throughput,
+                    payload?.tokens_per_second,
+                ]),
+                prefillDurationMs: this.firstFiniteChatboxNumber([
+                    timings?.prefill_ms,
+                    timings?.prefill_time_ms,
+                    timings?.prompt_ms,
+                    timings?.prompt_time_ms,
+                    payload?.prefill_ms,
+                    payload?.prefill_time_ms,
+                    payload?.prompt_ms,
+                    payload?.prompt_time_ms,
+                ]),
+                decodeDurationMs: this.firstFiniteChatboxNumber([
+                    timings?.decode_ms,
+                    timings?.decode_time_ms,
+                    timings?.generation_ms,
+                    timings?.generation_time_ms,
+                    timings?.completion_ms,
+                    timings?.completion_time_ms,
+                    payload?.decode_ms,
+                    payload?.decode_time_ms,
+                    payload?.generation_ms,
+                    payload?.generation_time_ms,
                 ]),
             };
         },
@@ -1214,6 +1357,12 @@ mixins.chatbox = {
                 ...(tracker.metrics || {}),
             };
 
+            if (!metrics.promptTokens && metrics.totalTokens && metrics.completionTokens) {
+                metrics.promptTokens = Math.max(metrics.totalTokens - metrics.completionTokens, 0);
+            }
+            if (!metrics.completionTokens && metrics.totalTokens && metrics.promptTokens) {
+                metrics.completionTokens = Math.max(metrics.totalTokens - metrics.promptTokens, 0);
+            }
             if (tracker.firstTokenAt && tracker.startedAt) {
                 metrics.ttftMs = tracker.firstTokenAt - tracker.startedAt;
             }
@@ -1221,11 +1370,17 @@ mixins.chatbox = {
                 metrics.totalDurationMs = tracker.finishedAt - tracker.startedAt;
             }
 
+            if (!metrics.prefillSpeed && metrics.promptTokens && metrics.prefillDurationMs) {
+                metrics.prefillSpeed = metrics.promptTokens / (metrics.prefillDurationMs / 1000);
+            }
             if (!metrics.prefillSpeed && metrics.promptTokens && tracker.firstTokenAt && tracker.startedAt) {
                 const prefillMs = tracker.firstTokenAt - tracker.startedAt;
                 if (prefillMs > 0) metrics.prefillSpeed = metrics.promptTokens / (prefillMs / 1000);
             }
 
+            if (!metrics.decodeSpeed && metrics.completionTokens && metrics.decodeDurationMs) {
+                metrics.decodeSpeed = metrics.completionTokens / (metrics.decodeDurationMs / 1000);
+            }
             if (!metrics.decodeSpeed && metrics.completionTokens && tracker.finishedAt) {
                 const decodeStart = tracker.firstTokenAt || tracker.startedAt;
                 const decodeMs = tracker.finishedAt - decodeStart;
@@ -1533,7 +1688,24 @@ mixins.chatbox = {
             if (this.chatbox.settings.thinkMode === "on") requestBody.think = true;
             if (this.chatbox.settings.thinkMode === "off") requestBody.think = false;
 
-            Object.assign(requestBody, extraBody);
+            const mergedExtraBody = {
+                ...(extraBody || {}),
+            };
+            const rawStreamOptions = mergedExtraBody.stream_options || mergedExtraBody.streamOptions;
+            const streamOptions =
+                rawStreamOptions && typeof rawStreamOptions === "object" && !Array.isArray(rawStreamOptions)
+                    ? { ...rawStreamOptions }
+                    : {};
+            if (requestBody.stream && !Object.prototype.hasOwnProperty.call(streamOptions, "include_usage")) {
+                streamOptions.include_usage = true;
+            }
+            if (Object.keys(streamOptions).length) {
+                requestBody.stream_options = streamOptions;
+            }
+            delete mergedExtraBody.stream_options;
+            delete mergedExtraBody.streamOptions;
+
+            Object.assign(requestBody, mergedExtraBody);
             return requestBody;
         },
         async requestChatboxAssistantResponse(conversationId, assistantMessageId, content, historyMessages) {

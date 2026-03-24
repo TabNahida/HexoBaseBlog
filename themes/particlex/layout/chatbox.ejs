@@ -182,6 +182,16 @@
 
                         <div class="chatbox-message-actions">
                             <button
+                                v-if="chatbox.editingMessageId !== message.id"
+                                type="button"
+                                class="tool-icon-button chatbox-message-icon"
+                                title="Copy full message"
+                                aria-label="Copy full message"
+                                @click="copyChatboxMessageDetails(message.id)"
+                            >
+                                <i class="fa-solid fa-copy fa-fw"></i>
+                            </button>
+                            <button
                                 v-if="message.role === 'user' && chatbox.editingMessageId !== message.id"
                                 type="button"
                                 class="tool-icon-button chatbox-message-icon"
